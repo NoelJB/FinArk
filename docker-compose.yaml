@@ -1,0 +1,29 @@
+version: '3.8'
+
+networks:
+  paysprint-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: paysprint-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: n3u3d4!
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # Mounts your ordered scripts to auto-run sequentially at startup
+      - ./db:/docker-entrypoint-initdb.d
+    networks:
+      - paysprint-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 3s
+      timeout: 3s
+      retries: 5
