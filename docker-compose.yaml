@@ -1,28 +1,29 @@
-networks:
-  paysprint-network:
-    driver: bridge
-
-volumes:
-  postgres_data:
-
 services:
-  postgres:
+  paysprint-postgres:
     image: postgres:16-alpine
     container_name: paysprint-postgres
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: n3u3d4!
-      POSTGRES_DB: paysprint
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      # Mounts your ordered scripts to auto-run sequentially at startup
-      - ./db:/docker-entrypoint-initdb.d
     networks:
       - paysprint-network
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: paysprint
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD_FILE: /run/secrets/pg_master_pass
+    secrets:
+      - pg_master_pass
+    volumes:
+      - ./db:/docker-entrypoint-initdb.d
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d paysprint"]
-      interval: 3s
-      timeout: 3s
+      interval: 5s
+      timeout: 5s
       retries: 5
+
+networks:
+  paysprint-network:
+    name: paysprint-network
+
+secrets:
+  pg_master_pass:
+    file: ./secrets/pg_master_pass.txt
