@@ -1,36 +1,20 @@
 -- ============================================================================
--- FINARK PLATFORM - PHASE 2: PORTFOLIO DRIFT MONITORING LAYER
--- Target File: db/04-portfolio-monitoring.sql
+-- FINARK PLATFORM - PHASE 3: PORTFOLIO DRIFT MONITORING LAYER
+-- Target File: db/09-portfolio-monitoring.sql
 -- ============================================================================
 
 \c paysprint;
 
--- 1. POLYMORPHIC TRANSACTIONAL OUTBOX LOG TABLE
-CREATE TABLE outbox (
-    id BIGSERIAL PRIMARY KEY,
-    aggregate_type VARCHAR(100) NOT NULL, -- 'ADVISOR_DASHBOARD', 'CLIENT_PORTFOLIO'
-    aggregate_id VARCHAR(100) NOT NULL,   -- Maps to client_id
-    event_type VARCHAR(100) NOT NULL,     -- 'DRIFT_ALERT' or 'TRADE_EXECUTED'
-    payload JSONB NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
-    CONSTRAINT chk_outbox_status CHECK (status IN ('PENDING', 'SENT', 'FAILED'))
-);
-
-CREATE INDEX idx_outbox_pending ON outbox(status, created_at ASC);
-
--- 2. REACTIVE PORTFOLIO DRIFT COMPLIANCE ALERTER TRIGGER ROUTINE
+-- 1. REACTIVE PORTFOLIO DRIFT COMPLIANCE ALERTER TRIGGER ROUTINE
 CREATE OR REPLACE FUNCTION check_portfolio_drift_compliance()
 RETURNS TRIGGER AS $$
 DECLARE
     max_drift NUMERIC(5,4);
 BEGIN
-    -- Query our window analytics view to locate the highest absolute deviation
     SELECT MAX(ABS(drift_variance)) INTO max_drift
     FROM v_client_portfolio_drift
     WHERE client_id = COALESCE(NEW.client_id, OLD.client_id);
 
-    -- If a future modification pushes them past ±2% variance, flag a breach
     IF max_drift > 0.0200 THEN
         INSERT INTO outbox (aggregate_type, aggregate_id, event_type, payload)
         VALUES (
@@ -55,7 +39,7 @@ CREATE TRIGGER trg_evaluate_drift_post_trade
     FOR EACH ROW
     EXECUTE FUNCTION check_portfolio_drift_compliance();
 
--- 3. HISTORICAL MIGRATION BACKFILL (Captures pre-existing anomalies like Alice)
+-- 2. HISTORICAL MIGRATION BACKFILL (Catches pre-existing anomalies like Alice)
 INSERT INTO outbox (aggregate_type, aggregate_id, event_type, payload)
 SELECT 
     'ADVISOR_DASHBOARD' AS aggregate_type,

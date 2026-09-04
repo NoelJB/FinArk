@@ -40,4 +40,14 @@ echo "✅ INFRASTRUCTURE SUCCESS: INFRASTRUCTURE STACK INITIALIZED GREEN"
 echo "👉 Execute validation tests via: ./test/run-test-container.sh"
 echo "======================================================"
 
+echo "⏳ Waiting for database container initialization scripts to complete..."
+while [ "$(docker inspect --format='{{json .State.Health.Status}}' paysprint-postgres)" != '"healthy"' ]; do
+    sleep 1
+done
+
+echo "======================================================"
+echo "✅ INFRASTRUCTURE SUCCESS: INFRASTRUCTURE STACK INITIALIZED GREEN"
+echo "👉 Execute validation tests via: ./test/run-test-container.sh"
+echo "======================================================"
+
 ./test/run-test-container.sh
