@@ -2,11 +2,7 @@
 -- 00-init.sql: DATABASE INITIALIZATION
 -- ============================================================================
 
--- 1. Create the dedicated database catalog container
-CREATE DATABASE paysprint;
+-- Pre-requisite: the database is established from the docker-compose.yaml file.
 
--- 2. Connect/Switch to the new database catalog context
-\c paysprint;
-
--- 3. Standardize timezone rendering to UTC for uniform event tracking
+-- 1. Standardize timezone rendering to UTC for uniform event tracking
 ALTER DATABASE paysprint SET timezone TO 'UTC';
