@@ -6,17 +6,17 @@
 
 -- 1. INDEPENDENT TABLES
 CREATE TABLE advisor (
-    id SERIAL PRIMARY KEY,
+    id int GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     name VARCHAR(255) NOT NULL
 );
 
 CREATE TABLE model_portfolio (
-    id SERIAL PRIMARY KEY,
+    id int GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     name VARCHAR(255) NOT NULL
 );
 
 CREATE TABLE instrument (
-    id SERIAL PRIMARY KEY,
+    id int GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     ticker VARCHAR(50) NOT NULL UNIQUE,
     name VARCHAR(255) NOT NULL,
     current_price NUMERIC(18, 4) NOT NULL DEFAULT 1.0000
@@ -24,7 +24,7 @@ CREATE TABLE instrument (
 
 -- 2. CORE ENTITIES
 CREATE TABLE client (
-    id SERIAL PRIMARY KEY,
+    id int GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     advisor_id INT NOT NULL,
     model_portfolio_id INT,
@@ -35,7 +35,7 @@ CREATE TABLE client (
 
 -- 3. ASSOCIATIVE & HISTORY TABLES
 CREATE TABLE subscription_history (
-    id SERIAL PRIMARY KEY,
+    id int GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     client_id INT NOT NULL,
     model_portfolio VARCHAR(255) NOT NULL,
     subscription_date DATE NOT NULL,
@@ -61,7 +61,35 @@ CREATE TABLE model_instrument (
     CONSTRAINT chk_weight_range CHECK (weight >= 0.0000 AND weight <= 1.0000)
 );
 
--- 4. PERFORMANCE INDEXES
+-- ============================================================================
+-- 4. HARDENING & DEFENSIVE DATA INTEGRITY CONSTRAINTS
+-- ============================================================================
+
+-- Financial boundaries
+ALTER TABLE instrument ADD CONSTRAINT chk_instrument_price 
+  CHECK (current_price >= 0.0000);
+
+ALTER TABLE client_instrument ADD CONSTRAINT chk_client_quantity 
+  CHECK (quantity >= 0.0000);
+
+-- Empty string and whitespace guards
+ALTER TABLE advisor ADD CONSTRAINT chk_advisor_name_nonzero 
+  CHECK (length(trim(name)) > 0);
+
+ALTER TABLE client ADD CONSTRAINT chk_client_name_nonzero 
+  CHECK (length(trim(name)) > 0);
+
+ALTER TABLE instrument ADD CONSTRAINT chk_instrument_name_nonzero 
+  CHECK (length(trim(name)) > 0);
+
+ALTER TABLE instrument ADD CONSTRAINT chk_instrument_ticker_nonzero 
+  CHECK (length(trim(ticker)) > 0);
+
+-- ============================================================================
+-- 5. PERFORMANCE & INTEGRITY INDEXES
+-- ============================================================================
+
 CREATE INDEX idx_client_advisor ON client(advisor_id);
 CREATE INDEX idx_sub_history_lookup ON subscription_history(client_id, subscription_date DESC);
 CREATE INDEX idx_client_inst_inst ON client_instrument(instrument_id);
+
