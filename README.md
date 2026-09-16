@@ -1,6 +1,6 @@
-# Finark Paysprint Platform: Architectural Blueprint
+# FinArk Paysprint Platform: Architectural Blueprint
 
-Welcome to the **Finark Paysprint Platform** educational sandbox repository. This project serves as an end-to-end, production-grade reference architecture designed to demonstrate how enterprise systems transition seamlessly from standard data-tier queries to scalable, asynchronous, **Event-Driven Architectures (EDA)**.
+Welcome to the **FinArk Paysprint Platform** educational sandbox repository. This project serves as an end-to-end, production-grade reference architecture designed to demonstrate how enterprise systems transition seamlessly from standard data-tier queries to scalable, asynchronous, **Event-Driven Architectures (EDA)**.
 
 ---
 
