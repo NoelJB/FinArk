@@ -9,5 +9,6 @@ SELECT 'ASSERT' AS label,
        COUNT(*)::TEXT AS actual, 
        '1' AS expected
 FROM outbox
-WHERE event_type = 'DRIFT_ALERT'
+WHERE aggregate_type = 'compliance-alerts' -- 👈 Matches new routing tag format
+  AND event_type = 'DRIFT_ALERT'
   AND aggregate_id = (SELECT id::VARCHAR FROM client WHERE name = 'Alice Johnson');

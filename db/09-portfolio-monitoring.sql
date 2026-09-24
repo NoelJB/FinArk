@@ -15,10 +15,11 @@ BEGIN
     FROM v_client_portfolio_drift
     WHERE client_id = COALESCE(NEW.client_id, OLD.client_id);
 
+    -- Inside check_portfolio_drift_compliance() trigger block:
     IF max_drift > 0.0200 THEN
         INSERT INTO outbox (aggregate_type, aggregate_id, event_type, payload)
         VALUES (
-            'ADVISOR_DASHBOARD',
+            'compliance-alerts', -- 👈 Re-aligned to target the compliance alerts Kafka stream
             COALESCE(NEW.client_id, OLD.client_id)::VARCHAR,
             'DRIFT_ALERT',
             jsonb_build_object(
@@ -40,9 +41,10 @@ CREATE TRIGGER trg_evaluate_drift_post_trade
     EXECUTE FUNCTION check_portfolio_drift_compliance();
 
 -- 2. HISTORICAL MIGRATION BACKFILL (Catches pre-existing anomalies like Alice)
+    -- Inside the Historical Migration Backfill query at the bottom of the file:
 INSERT INTO outbox (aggregate_type, aggregate_id, event_type, payload)
 SELECT 
-    'ADVISOR_DASHBOARD' AS aggregate_type,
+    'compliance-alerts' AS aggregate_type, -- 👈 Re-aligned target routing channel
     client_id::VARCHAR AS aggregate_id,
     'DRIFT_ALERT' AS event_type,
     jsonb_build_object(

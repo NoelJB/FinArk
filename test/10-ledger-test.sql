@@ -29,5 +29,6 @@ SELECT 'ASSERT' AS label,
        COUNT(*)::TEXT AS actual, 
        '1' AS expected
 FROM outbox 
-WHERE event_type = 'TRADE_EXECUTED' 
+WHERE aggregate_type = 'execution-ledger' -- 👈 Matches new routing tag format
+  AND event_type = 'TRADE_EXECUTED' 
   AND aggregate_id = (SELECT id FROM client WHERE name = 'David Kim')::VARCHAR;

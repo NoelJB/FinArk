@@ -42,7 +42,7 @@ BEGIN
     -- STEP B: Write the 'TRADE_EXECUTED' event frame atomically to the polymorphic outbox log
     INSERT INTO outbox (aggregate_type, aggregate_id, event_type, payload)
     VALUES (
-        'CLIENT_PORTFOLIO',
+        'execution-ledger', -- 👈 Re-aligned to point strictly to the target Kafka topic routing channel
         NEW.client_id::VARCHAR,
         'TRADE_EXECUTED',
         jsonb_build_object(
