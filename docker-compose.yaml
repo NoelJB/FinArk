@@ -20,6 +20,28 @@ services:
       timeout: 5s
       retries: 5
 
+  test-runner:
+    image: alpine:3.19
+    container_name: test-runner
+    profiles:
+      - db_tests
+    networks:
+      - paysprint-network
+    volumes:
+      - ./test:/test
+      - ./secrets:/secrets:ro
+    environment:
+      - DB_HOST=paysprint-postgres
+    depends_on:
+      paysprint-postgres:
+        condition: service_healthy
+    entrypoint: >
+      sh -c "
+        apk add --no-cache bash postgresql-client > /dev/null &&
+        export PGPASSWORD=$$(cat /secrets/pg_master_pass.txt) &&
+        /test/run-tests.sh
+      "
+
 networks:
   paysprint-network:
     name: paysprint-network

@@ -21,9 +21,9 @@ for test_file in $TEST_FILES; do
     
     BUFFER_FILE=$(mktemp)
     
-    # Run the test file using the inherited PGPASSWORD environment context variable
-    psql -h localhost -U postgres -d paysprint -A -t -F ',' -f "$test_file" > "$BUFFER_FILE" 2>&1
-    
+    # Run the test file over the private Docker cluster mesh network topology
+    psql -h "${DB_HOST:-localhost}" -U postgres -d paysprint -A -t -F ',' -f "$test_file" > "$BUFFER_FILE" 2>&1
+
     # The Global Assertion Engine: Scan output matrix lines for failed validations
     if grep -E "ASSERT" "$BUFFER_FILE" | awk -F ',' '$3 != $4' | grep . > /dev/null; then
         echo "❌ CRITICAL AUTOMATED REGRESSION MISMATCH DETECTED!"
