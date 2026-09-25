@@ -16,11 +16,20 @@ if [ ! -d "${ROOT_DIR}/secrets" ]; then
     mkdir -p "${ROOT_DIR}/secrets"
 fi
 
+# 1. Relational Database Encryption Key Guard
 if [ ! -f "${ROOT_DIR}/secrets/pg_master_pass.txt" ]; then
-    echo "🔑 Generating secure random instance keys..."
+    echo "🔑 Generating secure random instance keys for PostgreSQL..."
     openssl rand -base64 16 | tr -d '\n' > "${ROOT_DIR}/secrets/pg_master_pass.txt"
     chmod 600 "${ROOT_DIR}/secrets/pg_master_pass.txt"
     echo "✅ Encryption keys locked in vault storage."
+fi
+
+# 2. Shared JWT Cryptographic Signature Key Guard (BR-14 Automated)
+if [ ! -f "${ROOT_DIR}/secrets/jwt_shared_secret.txt" ]; then
+    echo "🔐 Generating 32-byte shared cryptographic key for microservice JWT signatures..."
+    openssl rand -base64 32 | tr -d '\n' > "${ROOT_DIR}/secrets/jwt_shared_secret.txt"
+    chmod 600 "${ROOT_DIR}/secrets/jwt_shared_secret.txt"
+    echo "✅ Shared signature secret locked in vault storage."
 fi
 
 echo "======================================================"
