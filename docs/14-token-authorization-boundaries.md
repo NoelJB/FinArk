@@ -109,3 +109,39 @@ In a PostgreSQL engine tier, this breaks performance by forcing continuous autov
 Under our established least-privilege security matrix, the application runtime connector user (`paysprint_app`) is structurally banned from querying core client account listings or ledger balances. By isolating credentials into a standalone entity, we can explicitly grant the Identity Microservice direct `SELECT` and `INSERT` privileges over *only* the `client_credentials` mapping structure. 
 
 The auth engine can process sign-ins and register new user accounts natively, while remaining completely blinded to the underlying trading account assets and multi-million-dollar transaction records, enforcing clean architectural zero-trust walls.
+
+---
+
+## 🏗️ Microservices Database Driver Strategy: pg8000 vs. Psycopg3
+
+When standardizing data connectivity layers across independent platform services, architects select drivers based on computational profiling and build-mesh complexity:
+
+### 1. Pure-Python Drivers for Lean Stateless Edge Tiering (pg8000)
+For edge identity providers (`auth-service`), database interactions are structurally limited to single-row parameterized credential validation checks and enrollment insertions. Because password blowfish salting and crypt computations are entirely offloaded to the database tier via `pgcrypto`, the application layer remains completely stateless and unburdened by heavy operations. 
+
+Standardizing on `pg8000` (a pure-Python client) eliminates the requirement for native system compilation tools (`gcc`, `musl-dev`, `libpq`) inside the lightweight Alpine container image layer. This yields three structural advantages:
+* **Turnkey Build Velocity:** Container instantiation pipelines complete in seconds without downloading or running complex compiler strings on student workstations.
+* **Minimized Attack Surface (OWASP Compliance):** Eliminating binary compilation binaries from the final container runtime restricts an attacker's capacity to drop or execute local privilege-escalation exploits if a framework vulnerability is breached.
+
+### 2. Multi-Stage Compiled Drivers for Transactional Pipelines (Psycopg3)
+For performance-critical background daemons that execute continuous batch operations and high-volume data loops (such as the upcoming `outbox-poller`), the processing overhead of a pure-Python network driver is not viable. These components mandate `Psycopg3` to achieve maximum execution throughput via native C loop optimizations.
+
+To prevent the compiler bloat problem from degrading production images, the platform enforces a **Multi-Stage Build Pattern**:
+
+```dockerfile
+# STAGE 1: THE EPHEMERAL COMPILATION BUILDER
+FROM python:3.14-alpine AS builder
+RUN apk add --no-cache gcc musl-dev postgresql-dev libffi-dev
+WORKDIR /build
+COPY requirements.txt .
+RUN pip install --no-cache-dir --user -r requirements.txt
+
+# STAGE 2: THE HARDENED PRODUCTION RUNTIME
+FROM python:3.14-alpine
+RUN apk add --no-cache libpq
+WORKDIR /app
+COPY --from=builder /root/.local /root/.local
+ENV PATH=/root/.local/bin:\$PATH
+...
+```
+This architectural approach isolates the entire compiler toolchain inside a temporary throwaway container stage. The final production image only inherits the compiled static wheels and the bare-minimum shared libraries, guaranteeing lightning-fast transactional velocity alongside a secure blueprint.
