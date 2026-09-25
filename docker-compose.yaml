@@ -77,6 +77,29 @@ services:
       timeout: 5s
       retries: 5
 
+  paysprint-auth:
+    build:
+      context: ./services/auth-service
+      dockerfile: Dockerfile
+    container_name: paysprint-auth
+    networks:
+      - paysprint-network
+    ports:
+      - "4000:4000"
+    environment:
+      - VALKEY_HOST=paysprint-cache
+      - VALKEY_PORT=6379
+    secrets:
+      - jwt_shared_secret
+    depends_on:
+      paysprint-cache:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 4000 || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   test-runner:
     image: alpine:3.19
     container_name: test-runner

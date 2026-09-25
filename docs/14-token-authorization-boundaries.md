@@ -76,3 +76,36 @@ When the token header reaches its internal destination service, that specific se
 * **The Role RBAC Gate:** The Execution engine reads the `roles` array claim to ensure a user holding a `GUEST` profile cannot execute a write transaction.
 
 Because the token is signed cryptographically by our Identity Provider using the shared secret, internal microservices can trust these claims implicitly without needing to query a centralized database or ping back to the Auth service, preserving our high-velocity horizontal scalability.
+
+## 🛡️ Decoupled Identity Warehousing vs. Accounting Normalization
+
+### The Structural Principle of Separation of Concerns (BR-01 Enforced)
+A severe architectural mistake frequently observed in primitive microservice layouts is merging user authentication parameters (such as usernames, password hashes, salts, and multi-factor validation data blocks) directly into the primary client transactional registry tables (`client`). 
+
+FinArk strictly isolates these domains at the relational data tier to preserve enterprise-grade normalization and defense-in-depth security:
+
+```text
+  [ Identity Tier (Auth Service) ]               [ Core Accounting Ledger ]
+   ┌──────────────────────────┐                   ┌───────────────────────┐
+   │    client_credentials    │                   │        client         │
+   ├──────────────────────────┤                   ├───────────────────────┤
+   │ client_id (PK/FK)        │ ──(References)──> │ id (PK)               │
+   │ username (Unique)        │                   │ name                  │
+   │ password_hash            │                   │ model_id              │
+   └──────────────────────────┘                   └───────────────────────┘
+```
+
+### 1. Hardening the Blast Radius
+The primary `client` table functions as the operational core of our wealth management machine. It handles multi-table accounting joins, ledger balances, and portfolio drift monitoring arrays. This table undergoes continuous read-write actions. 
+
+Conversely, security credentials represent high-risk, highly static tracking indices. Separating credentials into a dedicated, isolated partition (`client_credentials`) ensures that a data leak, an over-privileged query exploit, or an unexpected SQL injection exposure over the core ledger tier cannot expose the system's underlying authentication hashes.
+
+### 2. Eliminating Index Fragmentation & Vacuum Overheads
+Password management operations—such as token renewals, registration enrollment updates, and lockouts—generate high-churn row metadata modifications. Storing these transient security update markers inside the same table partition layout as long-term financial client reference records causes aggressive database table bloat. 
+
+In a PostgreSQL engine tier, this breaks performance by forcing continuous autovacuum loops and fragmenting index B-Trees. Keeping the credentials table uncoupled allows the core engine to process ledger sweeps at maximum disk efficiency.
+
+### 3. Least Privilege Role Based Access Bounds (OWASP A05)
+Under our established least-privilege security matrix, the application runtime connector user (`paysprint_app`) is structurally banned from querying core client account listings or ledger balances. By isolating credentials into a standalone entity, we can explicitly grant the Identity Microservice direct `SELECT` and `INSERT` privileges over *only* the `client_credentials` mapping structure. 
+
+The auth engine can process sign-ins and register new user accounts natively, while remaining completely blinded to the underlying trading account assets and multi-million-dollar transaction records, enforcing clean architectural zero-trust walls.
