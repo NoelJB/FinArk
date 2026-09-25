@@ -1,7 +1,7 @@
 -- ============================================================================
--- 02-seed.sql: SEED LOOKUPS, ENTITIES, AND MARKET PRICING
+-- 00-test-seed.sql: PRODUCTION-GRADE DATA FIXTURES W/ TRANSACTION ISOLATION
+-- Target File: db/fixtures/00-test-seed.sql | BRS Mapping: BR-14 Enforced
 -- ============================================================================
-
 \c paysprint;
 
 -- 1. SEED INDEPENDENT LOOKUP TABLES
@@ -39,15 +39,12 @@ INSERT INTO client (name, advisor_id, model_portfolio_id, subscription_date) VAL
 
 -- 3. SEED PORTFOLIO ALLOCATION TARGETS (MODEL_INSTRUMENT)
 INSERT INTO model_instrument (model_id, instrument_id, weight) VALUES
--- Balanced Growth Portfolio
 ((SELECT id FROM model_portfolio WHERE name = 'Balanced Growth'), (SELECT id FROM instrument WHERE ticker = 'GLBEQ1'), 0.4000),
 ((SELECT id FROM model_portfolio WHERE name = 'Balanced Growth'), (SELECT id FROM instrument WHERE ticker = 'CORPB1'), 0.3000),
 ((SELECT id FROM model_portfolio WHERE name = 'Balanced Growth'), (SELECT id FROM instrument WHERE ticker = 'CASHGBP'), 0.3000),
--- Adventurous Growth Portfolio
 ((SELECT id FROM model_portfolio WHERE name = 'Adventurous Growth'), (SELECT id FROM instrument WHERE ticker = 'GLBEQ1'), 0.7000),
 ((SELECT id FROM model_portfolio WHERE name = 'Adventurous Growth'), (SELECT id FROM instrument WHERE ticker = 'GILT10'), 0.2000),
 ((SELECT id FROM model_portfolio WHERE name = 'Adventurous Growth'), (SELECT id FROM instrument WHERE ticker = 'CASHGBP'), 0.1000),
--- Income Focus Portfolio
 ((SELECT id FROM model_portfolio WHERE name = 'Income Focus'), (SELECT id FROM instrument WHERE ticker = 'CORPB1'), 0.6000),
 ((SELECT id FROM model_portfolio WHERE name = 'Income Focus'), (SELECT id FROM instrument WHERE ticker = 'GILT10'), 0.3000),
 ((SELECT id FROM model_portfolio WHERE name = 'Income Focus'), (SELECT id FROM instrument WHERE ticker = 'CASHGBP'), 0.1000);
@@ -61,29 +58,42 @@ INSERT INTO subscription_history (client_id, model_portfolio, subscription_date)
 ((SELECT id FROM client WHERE name = 'Elena Petrova'), 'Balanced Growth', '2022-09-01'),
 ((SELECT id FROM client WHERE name = 'Farid Hossain'), 'Income Focus', '2024-01-20');
 
+-- ============================================================================
+-- ⚡ ATOMIC TRANSACTION LAYER
+-- Groups positions into a single execution block so the reactive triggers
+-- read a complete portfolio state and write to the outbox naturally [local].
+-- ============================================================================
+BEGIN;
+
 -- 5. INITIALIZE CLIENT ACTUAL POSITIONS (CLIENT_INSTRUMENT)
 INSERT INTO client_instrument (client_id, instrument_id, quantity) VALUES
--- Alice Johnson (Balanced Growth)
 ((SELECT id FROM client WHERE name = 'Alice Johnson'), (SELECT id FROM instrument WHERE ticker = 'GLBEQ1'), 400.0000),
 ((SELECT id FROM client WHERE name = 'Alice Johnson'), (SELECT id FROM instrument WHERE ticker = 'CORPB1'), 300.0000),
 ((SELECT id FROM client WHERE name = 'Alice Johnson'), (SELECT id FROM instrument WHERE ticker = 'CASHGBP'), 300.0000),
--- Brian Osei (Adventurous Growth)
 ((SELECT id FROM client WHERE name = 'Brian Osei'), (SELECT id FROM instrument WHERE ticker = 'GLBEQ1'), 700.0000),
 ((SELECT id FROM client WHERE name = 'Brian Osei'), (SELECT id FROM instrument WHERE ticker = 'GILT10'), 200.0000),
 ((SELECT id FROM client WHERE name = 'Brian Osei'), (SELECT id FROM instrument WHERE ticker = 'CASHGBP'), 100.0000),
--- Carla Mendes (Income Focus)
 ((SELECT id FROM client WHERE name = 'Carla Mendes'), (SELECT id FROM instrument WHERE ticker = 'CORPB1'), 600.0000),
 ((SELECT id FROM client WHERE name = 'Carla Mendes'), (SELECT id FROM instrument WHERE ticker = 'GILT10'), 300.0000),
 ((SELECT id FROM client WHERE name = 'Carla Mendes'), (SELECT id FROM instrument WHERE ticker = 'CASHGBP'), 100.0000),
--- David Kim (Adventurous Growth)
 ((SELECT id FROM client WHERE name = 'David Kim'), (SELECT id FROM instrument WHERE ticker = 'GLBEQ1'), 700.0000),
 ((SELECT id FROM client WHERE name = 'David Kim'), (SELECT id FROM instrument WHERE ticker = 'GILT10'), 200.0000),
 ((SELECT id FROM client WHERE name = 'David Kim'), (SELECT id FROM instrument WHERE ticker = 'CASHGBP'), 100.0000),
--- Elena Petrova (Balanced Growth)
 ((SELECT id FROM client WHERE name = 'Elena Petrova'), (SELECT id FROM instrument WHERE ticker = 'GLBEQ1'), 400.0000),
 ((SELECT id FROM client WHERE name = 'Elena Petrova'), (SELECT id FROM instrument WHERE ticker = 'CORPB1'), 300.0000),
 ((SELECT id FROM client WHERE name = 'Elena Petrova'), (SELECT id FROM instrument WHERE ticker = 'CASHGBP'), 300.0000),
--- Farid Hossain (Income Focus)
 ((SELECT id FROM client WHERE name = 'Farid Hossain'), (SELECT id FROM instrument WHERE ticker = 'CORPB1'), 600.0000),
 ((SELECT id FROM client WHERE name = 'Farid Hossain'), (SELECT id FROM instrument WHERE ticker = 'GILT10'), 300.0000),
 ((SELECT id FROM client WHERE name = 'Farid Hossain'), (SELECT id FROM instrument WHERE ticker = 'CASHGBP'), 100.0000);
+
+COMMIT;
+
+-- 6. SEED IDENTITY STORE PROFILE VECTORS
+INSERT INTO client_credentials (client_id, username, password_hash)
+VALUES 
+((SELECT id FROM client WHERE name = 'Alice Johnson'), 'alice', crypt('mission123', gen_salt('bf', 8))),
+((SELECT id FROM client WHERE name = 'Brian Osei'), 'bob', crypt('wrongpermissions', gen_salt('bf', 8)))
+ON CONFLICT (client_id) DO NOTHING;
+
+-- 7. SYNCHRONIZE STATE DATA SNAPSHOT CACHES
+REFRESH MATERIALIZED VIEW mv_eod_regulatory_compliance;

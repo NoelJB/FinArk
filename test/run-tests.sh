@@ -6,7 +6,7 @@
 
 set -euo pipefail
 
-TEST_DIR="$(cd "$(dirname "${BASH_SOURCE}")" && pwd)"
+TEST_DIR="$(cd "$(dirname "${BASH_SOURCE}")" && pwd)/db"
 
 echo "======================================================"
 echo "🚀 FINARK AUTOMATED REGRESSION HARNESS"

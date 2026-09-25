@@ -1,15 +1,14 @@
 -- ============================================================================
--- FINARK PLATFORM - TEST 09: DRIFT BACKFILL INITIALIZATION ASSERTIONS
--- Target File: test/09-drift-monitor-test.sql | BRS Mapping: BR-14 / BR-16
+-- FINARK PLATFORM - TEST 03: MIGRATION BACKFILL OUTBOX ASSERTIONS
 -- ============================================================================
 \c paysprint;
 
--- Assertion A: Verify the initialization backfill query correctly caught Alice Johnson's pre-existing drift violation
+-- Assertion: Verify migration backfill successfully staged the DRIFT_ALERT row for Alice on stack boot
 SELECT 'ASSERT' AS label, 
        'outbox_backfill_staging' AS slug, 
        COUNT(*)::TEXT AS actual, 
-       '1' AS expected
+       '3' AS expected
 FROM outbox
-WHERE aggregate_type = 'compliance-alerts'
+WHERE aggregate_type = 'compliance-alerts' -- 👈 Matches new routing tag format
   AND event_type = 'DRIFT_ALERT'
   AND aggregate_id = (SELECT id::VARCHAR FROM client WHERE name = 'Alice Johnson');

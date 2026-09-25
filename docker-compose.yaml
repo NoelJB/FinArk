@@ -13,7 +13,7 @@ services:
     secrets:
       - pg_master_pass
     volumes:
-      - ./db:/docker-entrypoint-initdb.d
+      - ./db/core_ddl/:/docker-entrypoint-initdb.d
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d paysprint"]
       interval: 5s
@@ -100,6 +100,7 @@ services:
       timeout: 5s
       retries: 5
 
+
   test-runner:
     image: alpine:3.19
     container_name: test-runner
@@ -109,6 +110,7 @@ services:
       - paysprint-network
     volumes:
       - ./test:/test
+      - ./db/fixtures:/fixtures:ro
       - ./secrets:/secrets:ro
     environment:
       - DB_HOST=paysprint-postgres
@@ -119,6 +121,19 @@ services:
       sh -c "
         apk add --no-cache bash postgresql-client > /dev/null &&
         export PGPASSWORD=$$(cat /secrets/pg_master_pass.txt) &&
+        
+        echo '⏳ Phase 1: Polling database container TCP port availability...' &&
+        until pg_isready -h $$DB_HOST -U postgres -d paysprint; do
+          sleep 1
+        done &&
+        
+        echo '⏳ Phase 2: Confirming relational catalog structural completion...' &&
+        until psql -h $$DB_HOST -U postgres -d paysprint -t -c \"SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'advisor');\" | grep -q t; do
+          sleep 1
+        done &&
+        
+        echo '🧪 Data tier stabilized. Injecting testing fixture dataset...' &&
+        psql -h $$DB_HOST -U postgres -d paysprint -f /fixtures/00-test-seed.sql > /dev/null &&
         /test/run-tests.sh
       "
 

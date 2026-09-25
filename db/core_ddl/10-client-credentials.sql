@@ -1,6 +1,6 @@
 -- ============================================================================
 -- FINARK PLATFORM - PHASE 3: DEDICATED RELATIONAL CREDENTIALS CAPABILITY
--- Target File: db/10-client-credentials.sql | BRS Mapping: BR-01 Enforced
+-- Target File: db/core_ddl/10-client-credentials.sql | BRS Mapping: BR-01 Enforced
 -- ============================================================================
 
 \c paysprint;
@@ -18,20 +18,5 @@ CREATE TABLE client_credentials (
     CONSTRAINT fk_credentials_client FOREIGN KEY (client_id) REFERENCES client(id) ON DELETE CASCADE
 );
 
+-- Indexing optimized for high-speed authentication check lookup loops
 CREATE INDEX idx_credentials_auth ON client_credentials(username);
-
--- 3. SEED INITIAL IDENTITIES (BRS BR-01 Alignment)
--- Dynamically pulls valid IDs for users present in the production 02-seed matrix
-INSERT INTO client_credentials (client_id, username, password_hash)
-VALUES 
-(
-    (SELECT id FROM client WHERE name = 'Alice Johnson'), 
-    'alice', 
-    crypt('mission123', gen_salt('bf', 8))
-),
-(
-    (SELECT id FROM client WHERE name = 'Brian Osei'), -- Aligned with real seed record
-    'bob', -- Preserves standard username stub for application lookup compatibility
-    crypt('wrongpermissions', gen_salt('bf', 8))
-)
-ON CONFLICT (client_id) DO NOTHING;
