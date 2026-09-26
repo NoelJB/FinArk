@@ -87,12 +87,16 @@ services:
     ports:
       - "4000:4000"
     environment:
-      - VALKEY_HOST=paysprint-cache
-      - VALKEY_PORT=6379
+      - "VALKEY_HOST=paysprint-cache"
+      - "VALKEY_PORT=6379"
+      - "DB_HOST=paysprint-postgres" # 🔐 Hardened quote encapsulation bounds
     secrets:
       - jwt_shared_secret
+      - pg_master_pass
     depends_on:
       paysprint-cache:
+        condition: service_healthy
+      paysprint-postgres:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "nc -z localhost 4000 || exit 1"]
@@ -110,6 +114,7 @@ services:
       - paysprint-network
     volumes:
       - ./test:/test
+      - ./test/api:/test/api:ro # 🔐 Mount our API integration script path read-only
       - ./db/fixtures:/fixtures:ro
       - ./secrets:/secrets:ro
     environment:

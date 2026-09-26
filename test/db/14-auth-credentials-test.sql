@@ -26,31 +26,29 @@ WHERE username = 'bob'
 -- REGISTRATION INSULATION BOUNDARY (BR-01 Enforced)
 -- ============================================================================
 
--- 🔐 RESOLVE CONTEXT FIRST: Capture Alice's numeric ID using administrative authority
--- and store it inside a temporary session configuration variable.
-SELECT id::TEXT FROM client WHERE name = 'Alice Johnson' \gset client_
+-- 🔐 RESOLVE CONTEXT FIRST: Target Farid Hossain to prevent baseline account overwrites
+SELECT id::TEXT FROM client WHERE name = 'Farid Hossain' \gset client_
 
--- Switch down to our low-privilege application runtime roleuser
+-- Switch down to our low-privilege application runtime role
 SET ROLE paysprint_app;
 
--- Execute insertion: Read the pre-resolved integer variable directly to bypass 
--- unauthorized table scans on the parent client registry.
+-- Execute insertion: This will insert cleanly as a new record because Farid has no credentials
 INSERT INTO client_credentials (client_id, username, password_hash)
 VALUES (
     :'client_id'::INT,
-    'alice_alt_profile',
+    'farid_alt_profile', -- 💡 Aligned name tag
     crypt('securenewsignup2026', gen_salt('bf', 8))
 ) ON CONFLICT (client_id) DO UPDATE 
-  SET username = 'alice_alt_profile', 
+  SET username = 'farid_alt_profile', 
       password_hash = crypt('securenewsignup2026', gen_salt('bf', 8));
 
--- Assertion D: Verify that the newly inserted registration credential evaluates green under paysprint_app
+-- Assertion D: Verify that the newly inserted registration credential evaluates green
 SELECT 'ASSERT' AS label,
        'dynamic_registration_validation' AS slug,
        (COUNT(*))::TEXT AS actual,
        '1' AS expected
 FROM client_credentials
-WHERE username = 'alice_alt_profile'
+WHERE username = 'farid_alt_profile'
   AND password_hash = crypt('securenewsignup2026', password_hash);
 
 -- Reset configuration state back to superuser for downstream modules
