@@ -91,30 +91,44 @@ def login():
         return jsonify({"error": "missing credentials"}), 400
         
     try:
+        # 1. Open the relational database connection handles natively
         conn = get_db_connection()
         cursor = conn.cursor()
         
+        # 🔐 Hardened SQL: Use a LEFT JOIN combined with string_agg to group all 
+        # assigned roles into a single comma-separated string value format.
         query = """
-            SELECT client_id 
-            FROM client_credentials 
-            WHERE username = %s 
-              AND password_hash = crypt(%s, password_hash);
+            SELECT cc.client_id, string_agg(pr.role_name, ',') as roles
+            FROM client_credentials cc
+            LEFT JOIN client_role_mappings crm ON cc.client_id = crm.client_id
+            LEFT JOIN platform_roles pr ON crm.role_id = pr.role_id
+            WHERE cc.username = %s AND cc.password_hash = crypt(%s, cc.password_hash)
+            GROUP BY cc.client_id;
         """
+        
         cursor.execute(query, (username, password))
         result = cursor.fetchone()
-        
-        cursor.close()
-        conn.close()
         
         if not result:
             return jsonify({"error": "invalid username or password"}), 401
             
-        client_id = result[0]
+        # 🔐 Hardened Unpacking: Extract the unpacked primitive tuple variables safely
+        client_id, raw_roles_string = result
+        
+        # 🔐 Safe Evaluation Loop: If the user is a fresh registration (like 'noel' in Test B),
+        # raw_roles_string will evaluate to NULL/None. We intercept and apply the default array scope.
+        if raw_roles_string:
+            assigned_roles = raw_roles_string.split(',')
+        else:
+            assigned_roles = ["GUEST"]
+            
+        # Initialize immutable transaction tokens
         token_uuid = str(uuid.uuid4())
         now = int(time.time())
         lifespan_seconds = 3600  # 1 hour
-        assigned_roles = ["MISSION_OPERATOR"] if username == "alice" else ["GUEST"]
         
+        # 🔐 Preserved Variables: assigned_roles is safely populated dynamically 
+        # from the database, meaning both the payload mapping and grant execution remain intact!
         payload = {
             "sub": username,
             "client_id": client_id,
@@ -135,7 +149,6 @@ def login():
         )
         
         return jsonify({"token": token})
-        
     except Exception as e:
         return jsonify({"error": f"Internal authentication database failure: {str(e)}"}), 500
 

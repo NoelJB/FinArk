@@ -97,3 +97,23 @@ ON CONFLICT (client_id) DO NOTHING;
 
 -- 7. SYNCHRONIZE STATE DATA SNAPSHOT CACHES
 REFRESH MATERIALIZED VIEW mv_eod_regulatory_compliance;
+
+-- ============================================================================
+-- FINARK PLATFORM - TEST ENVIRONMENT ROLE & RELATIONSHIP SEED DATA
+-- Append to Target File: db/fixtures/00-test-seed.sql | BRS Mapping: BR-02
+-- ============================================================================
+
+-- 1. Seed structural role configurations cleanly into the lookup catalog
+INSERT INTO platform_roles (role_name) VALUES ('MISSION_OPERATOR') ON CONFLICT DO NOTHING;
+INSERT INTO platform_roles (role_name) VALUES ('GUEST') ON CONFLICT DO NOTHING;
+
+-- 2. Establish Role Mappings for baseline testing accounts
+-- Connects client_id 1 (alice) to MISSION_OPERATOR
+INSERT INTO client_role_mappings (client_id, role_id)
+SELECT 1, role_id FROM platform_roles WHERE role_name = 'MISSION_OPERATOR'
+ON CONFLICT DO NOTHING;
+
+-- Connects client_id 2 (bob) to GUEST
+INSERT INTO client_role_mappings (client_id, role_id)
+SELECT 2, role_id FROM platform_roles WHERE role_name = 'GUEST'
+ON CONFLICT DO NOTHING;
