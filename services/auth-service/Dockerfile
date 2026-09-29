@@ -1,19 +1,26 @@
-# Use the official stable Python 3.14 Alpine footprint to maximize platform modernization
+# syntax=docker/dockerfile:1
 FROM python:3.14-alpine
 
 WORKDIR /app
 
-# Install native system build utilities
-RUN apk add --no-cache bash
+# 🔐 Hardened: Provision netcat to support native Docker daemon healthcheck commands
+RUN apk add --no-cache bash netcat-openbsd
 
-# Copy and install python library dependencies
+# 1. Copy the requirements file first to build a stable baseline
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy our active microservice application code
+# 2. Copy ONLY the setup configuration metadata to define package bounds
+COPY --from=finark_core_src setup.py /packages/finark-core/setup.py
+
+# 3. Compile and lock down your third-party dependency wheel layer
+RUN pip install --no-cache-dir --break-system-packages -r requirements.txt
+
+# 4. Copy the changing library source code LATER in the layering sequence
+COPY --from=finark_core_src finark_core/ /packages/finark-core/finark_core/
+
+# 5. Copy your local web server logic
 COPY auth_service.py .
 
 EXPOSE 4000
 
-# Run the application unbuffered to stream logs directly to the docker console
-CMD ["python", "-u", "auth_service.py"]
+ENTRYPOINT ["python3", "auth_service.py"]

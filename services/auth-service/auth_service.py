@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # ============================================================================
-# FINARK PLATFORM - PHASE 3: IDENTITY PROVIDER (DATABASE BACKED)
+# FINARK PLATFORM - PHASE 3: IDENTITY PROVIDER (DECENTRALIZED MEMORY GRID)
 # Target File: services/auth-service/auth_service.py | BRS: BR-01 / BR-02 / BR-03
 # ============================================================================
 
@@ -10,8 +10,10 @@ import uuid
 import time
 from flask import Flask, request, jsonify
 import jwt
-import valkey
 import pg8000.dbapi
+
+# 🔌 Import the custom internal shared platform sdk module chassis
+from finark_core.session_grid import SecurityGrid
 
 app = Flask(__name__)
 
@@ -37,11 +39,15 @@ def load_vault_secret(file_path, env_fallback):
 JWT_SECRET = load_vault_secret(SECRET_FILE_PATH, "JWT_SECRET")
 DB_PASSWORD = load_vault_secret(PG_PASSWORD_FILE, "DB_PASSWORD")
 
-# Establish connection handle to our fast, in-memory Valkey layer
+# 🔌 Initialize our shared platform decentralized state layer connection
 try:
-    cache = valkey.Valkey(host=VALKEY_HOST, port=VALKEY_PORT, decode_responses=True)
+    security_grid = SecurityGrid(
+        valkey_host=VALKEY_HOST,
+        valkey_port=VALKEY_PORT,
+        jwt_secret=JWT_SECRET
+    )
 except Exception as e:
-    print(f"❌ Cache Connectivity Failure: Valkey unreachable at {VALKEY_HOST}:{VALKEY_PORT}. Details: {e}")
+    print(f"❌ Core Platform Failure: Shared Security Grid unreachable. Details: {e}")
     sys.exit(1)
 
 def get_db_connection():
@@ -53,14 +59,24 @@ def get_db_connection():
         password=DB_PASSWORD
     )
 
+
 def extract_token_from_header(header_string):
-    """Safely isolates the raw string JWT from standard Bearer headers."""
-    if not header_string or ' ' not in header_string:
+    """Safely isolates the raw string JWT from standard Bearer headers using idiomatic tuple unpacking."""
+    if not header_string:
         return None
-    parts = header_string.split(' ')
-    if len(parts) == 2 and parts[0].lower() == 'bearer':
-        return parts[1]
+        
+    try:
+        # 🔐 Hardened: Idiomatic unpacking catches trailing padding via starred discard
+        schema, value, *_ = header_string.split(" ")
+        
+        if schema.lower() == 'bearer':
+            return value
+    except ValueError:
+        # Catches cases where split doesn't yield at least two distinct variables
+        return None
+        
     return None
+
 
 # ----------------------------------------------------------------------------
 # 🔐 ENDPOINT: /login (BR-01 SECURE SIGN-IN VIA DATABASE VERIFICATION)
@@ -78,8 +94,6 @@ def login():
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        # Query utilizing native database-tier Blowfish verification check patterns
-        # Modified paramstyle specifically for pg8000 driver requirements
         query = """
             SELECT client_id 
             FROM client_credentials 
@@ -99,11 +113,12 @@ def login():
         token_uuid = str(uuid.uuid4())
         now = int(time.time())
         lifespan_seconds = 3600  # 1 hour
+        assigned_roles = ["MISSION_OPERATOR"] if username == "alice" else ["GUEST"]
         
         payload = {
             "sub": username,
             "client_id": client_id,
-            "roles": ["MISSION_OPERATOR"] if username == "alice" else ["GUEST"],
+            "roles": assigned_roles,
             "jti": token_uuid,
             "iat": now,
             "exp": now + lifespan_seconds
@@ -111,8 +126,13 @@ def login():
         
         token = jwt.encode(payload, JWT_SECRET, algorithm='HS256')
         
-        # 🔐 Register the token UUID into Valkey as a single source of active session truth
-        cache.setex(f"active_token:{token_uuid}", lifespan_seconds, "active")
+        # 🔌 Pass tracking parameters straight to our shared core library envelope
+        security_grid.grant(
+            token_uuid=token_uuid,
+            subject_id=client_id,
+            roles=assigned_roles,
+            ttl_seconds=lifespan_seconds
+        )
         
         return jsonify({"token": token})
         
@@ -136,8 +156,6 @@ def register():
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        # Offload secure password salting and blowfish computing entirely to the DB tier
-        # Modified paramstyle specifically for pg8000 driver requirements
         query = """
             INSERT INTO client_credentials (client_id, username, password_hash)
             VALUES (%s, %s, crypt(%s, gen_salt('bf', 8)));
@@ -171,8 +189,8 @@ def logout():
         token_uuid = payload.get('jti')
         
         if token_uuid:
-            # 🔐 Simply remove the token from Valkey to destroy the session instantly
-            cache.delete(f"active_token:{token_uuid}")
+            # 🔌 Route eviction commands cleanly through our internal SDK layer
+            security_grid.revoke(token_uuid=token_uuid)
             
         return jsonify({"status": "successfully logged out and session destroyed"})
         
@@ -190,20 +208,13 @@ def verify():
     if not raw_jwt:
         return jsonify({"valid": False, "error": "missing token"}), 401
         
-    try:
-        payload = jwt.decode(raw_jwt, JWT_SECRET, algorithms=['HS256'])
-        token_uuid = payload.get('jti')
+    # 🔌 Route verification passes directly through our core SDK logic block
+    session_claims = security_grid.is_valid(raw_token=raw_jwt)
+    
+    if not session_claims:
+        return jsonify({"valid": False, "error": "token has expired or been revoked"}), 401
         
-        # 🔐 Enforce strict validation: check that the token exists in the active whitelist
-        if not token_uuid or not cache.exists(f"active_token:{token_uuid}"):
-            return jsonify({"valid": False, "error": "token has expired or been revoked"}), 401
-            
-        return jsonify({"valid": True, "claims": payload}), 200
-        
-    except jwt.ExpiredSignatureError:
-        return jsonify({"valid": False, "error": "token signature has naturally expired"}), 401
-    except jwt.InvalidTokenError:
-        return jsonify({"valid": False, "error": "corrupted or invalid token signature pattern"}), 401
+    return jsonify({"valid": True, "claims": session_claims}), 200
 
 if __name__ == '__main__':
     port = int(os.getenv("PORT", 4000))

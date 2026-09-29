@@ -21,7 +21,7 @@ services:
       retries: 5
 
   paysprint-kafka:
-    image: confluentinc/cp-kafka:7.5.0
+    image: confluentinc/cp-kafka:8.3.0
     container_name: paysprint-kafka
     networks:
       - paysprint-network
@@ -49,7 +49,7 @@ services:
       retries: 5
 
   paysprint-kafka-init:
-    image: confluentinc/cp-kafka:7.5.0
+    image: confluentinc/cp-kafka:8.3.0
     container_name: paysprint-kafka-init
     networks:
       - paysprint-network
@@ -77,10 +77,13 @@ services:
       timeout: 5s
       retries: 5
 
+
   paysprint-auth:
     build:
-      context: ./services/auth-service
+      context: ./services/auth-service # 🔐 Retains clean service-level isolation
       dockerfile: Dockerfile
+      additional_contexts:
+        finark_core_src: ./packages/finark-core # 🔌 Correct Compose Spec Mapping
     container_name: paysprint-auth
     networks:
       - paysprint-network
@@ -89,7 +92,7 @@ services:
     environment:
       - "VALKEY_HOST=paysprint-cache"
       - "VALKEY_PORT=6379"
-      - "DB_HOST=paysprint-postgres" # 🔐 Hardened quote encapsulation bounds
+      - "DB_HOST=paysprint-postgres"
     secrets:
       - jwt_shared_secret
       - pg_master_pass
@@ -106,7 +109,9 @@ services:
 
 
   test-runner:
-    image: alpine:3.19
+    build:
+      context: .
+      dockerfile: test/Dockerfile
     container_name: test-runner
     profiles:
       - db_tests
@@ -114,33 +119,22 @@ services:
       - paysprint-network
     volumes:
       - ./test:/test
-      - ./test/api:/test/api:ro # 🔐 Mount our API integration script path read-only
+      - ./packages:/packages:ro
+      - ./test/api:/test/api:ro
       - ./db/fixtures:/fixtures:ro
       - ./secrets:/secrets:ro
+    command: ["/bin/bash", "/test/run-tests.sh"]
     environment:
       - DB_HOST=paysprint-postgres
+      - VALKEY_HOST=paysprint-cache
+      - VALKEY_PORT=6379
     depends_on:
+      paysprint-cache:
+        condition: service_healthy
       paysprint-postgres:
         condition: service_healthy
-    entrypoint: >
-      sh -c "
-        apk add --no-cache bash postgresql-client > /dev/null &&
-        export PGPASSWORD=$$(cat /secrets/pg_master_pass.txt) &&
-        
-        echo '⏳ Phase 1: Polling database container TCP port availability...' &&
-        until pg_isready -h $$DB_HOST -U postgres -d paysprint; do
-          sleep 1
-        done &&
-        
-        echo '⏳ Phase 2: Confirming relational catalog structural completion...' &&
-        until psql -h $$DB_HOST -U postgres -d paysprint -t -c \"SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'advisor');\" | grep -q t; do
-          sleep 1
-        done &&
-        
-        echo '🧪 Data tier stabilized. Injecting testing fixture dataset...' &&
-        psql -h $$DB_HOST -U postgres -d paysprint -f /fixtures/00-test-seed.sql > /dev/null &&
-        /test/run-tests.sh
-      "
+      paysprint-auth:
+        condition: service_healthy # 🔐 Hardened: Hold the runner back until the web service settles completely
 
 networks:
   paysprint-network:
