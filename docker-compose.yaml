@@ -136,6 +136,38 @@ services:
       paysprint-auth:
         condition: service_healthy # 🔐 Hardened: Hold the runner back until the web service settles completely
 
+  # ----------------------------------------------------------------------------
+  # 🟢 THE PERIMETER MICROGATEWAY (NESTJS / TYPESCRIPT TIER)
+  # ----------------------------------------------------------------------------
+  api-gateway:
+    build:
+      context: ./services/api-gateway
+      dockerfile: Dockerfile
+    container_name: api-gateway
+    ports:
+      - "3000:3000" # 🔐 The sole public domain boundary interface entry point
+    networks:
+      - paysprint-network
+    volumes:
+      - ./services/api-gateway:/app
+      - /app/node_modules # Protect container modules from host path leaks
+      - ./secrets:/secrets:ro
+    environment:
+      - "VALKEY_HOST=paysprint-cache"
+      - "VALKEY_PORT=6379"
+      - "TRADE_SERVICE_URL=http://trade-gateway:8080"
+      - "PORTFOLIO_SERVICE_URL=http://portfolio-viewer:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 3000 || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    depends_on:
+      paysprint-cache:
+        condition: service_healthy
+      trade-gateway:
+        condition: service_healthy
+
 networks:
   paysprint-network:
     name: paysprint-network
