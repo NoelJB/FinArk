@@ -1,9 +1,9 @@
 import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
 import { HttpModule } from '@nestjs/axios';
 import * as fs from 'fs';
-import { SessionGrid } from './security/session-grid';
-import { AuthMiddleware } from './middleware/auth.middleware';
-import { DynamicProxyMiddleware } from './middleware/dynamic-proxy.middleware';
+import { SessionGrid } from './security/session-grid.js';
+import { AuthMiddleware } from './middleware/auth.middleware.js';
+import { DynamicProxyMiddleware } from './middleware/dynamic-proxy.middleware.js';
 
 @Module({
   imports: [HttpModule],

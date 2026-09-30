@@ -1,26 +1,37 @@
-import { createClient } from 'redis';
+import { Valkey } from 'iovalkey';
 import * as jwt from 'jsonwebtoken';
 
 export class SessionGrid {
-  private cache: any;
+  private cache: Valkey;
 
   constructor(
-    private valkeyHost: String,
+    private valkeyHost: string,
     private valkeyPort: number,
     private jwtSecret: string,
   ) {
-    this.cache = createClient({ url: `redis://${valkeyHost}:${valkeyPort}` });
+    this.cache = new Valkey({
+      host: String(valkeyHost),
+      port: valkeyPort,
+      maxRetriesPerRequest: 3, 
+    });
   }
 
   async initialize(): Promise<void> {
-    await this.cache.connect();
+    if (this.cache.status !== 'ready') {
+      await new Promise<void>((resolve, reject) => {
+        this.cache.once('ready', () => resolve());
+        this.cache.once('error', (err) => reject(err));
+      });
+    }
   }
 
   async grant(tokenUuid: string, subjectId: number, roles: string[], ttlSeconds: number): Promise<boolean> {
     try {
       const envelope = { sub_id: subjectId, roles, metadata: {} };
-      const cacheKey = `active_token:${tokenUuid}`;
-      await this.cache.setEx(cacheKey, ttlSeconds, JSON.stringify(envelope));
+      // 🔐 Hardened: Aligned string keyspace tokens with the core Python SDK definitions
+      const cacheKey = `auth_session:${tokenUuid}`;
+      
+      await this.cache.setex(cacheKey, ttlSeconds, JSON.stringify(envelope));
       return true;
     } catch {
       return false;
@@ -32,9 +43,12 @@ export class SessionGrid {
       const payload: any = jwt.verify(rawToken, this.jwtSecret);
       const tokenUuid = payload.jti;
       if (!tokenUuid) return null;
-      const cacheKey = `active_token:${tokenUuid}`;
+      
+      // 🔐 Hardened: Aligned string keyspace tokens with the core Python SDK definitions
+      const cacheKey = `auth_session:${tokenUuid}`;
       const rawSession = await this.cache.get(cacheKey);
       if (!rawSession) return null;
+      
       return JSON.parse(rawSession);
     } catch {
       return null;
@@ -43,7 +57,8 @@ export class SessionGrid {
 
   async revoke(tokenUuid: string): Promise<boolean> {
     try {
-      const cacheKey = `active_token:${tokenUuid}`;
+      // 🔐 Hardened: Aligned string keyspace tokens with the core Python SDK definitions
+      const cacheKey = `auth_session:${tokenUuid}`;
       await this.cache.del(cacheKey);
       return true;
     } catch {

@@ -123,6 +123,8 @@ services:
       - ./test/api:/test/api:ro
       - ./db/fixtures:/fixtures:ro
       - ./secrets:/secrets:ro
+      - ./services/api-gateway:/build/services/api-gateway
+      - /build/services/api-gateway/node_modules
     command: ["/bin/bash", "/test/run-tests.sh"]
     environment:
       - DB_HOST=paysprint-postgres
@@ -165,8 +167,43 @@ services:
     depends_on:
       paysprint-cache:
         condition: service_healthy
-      trade-gateway:
-        condition: service_healthy
+ #     trade-gateway:
+ #       condition: service_healthy
+
+  # ----------------------------------------------------------------------------
+  # ☕ THE INGESTION ORDER MANAGEMENT SYSTEM (SPRING BOOT / JAVA 21 TIER)
+  # ----------------------------------------------------------------------------
+
+#  trade-gateway:
+#    build:
+#      context: ./services/trade-gateway
+#      dockerfile: Dockerfile
+#      additional_contexts:
+#        # 🔌 Inject the shared Java core package module via BuildKit
+#        finark_core_java_src: ./packages/finark-core-java
+#    container_name: trade-gateway
+#    networks:
+#      - paysprint-network
+#    volumes:
+#      - ./services/trade-gateway:/build
+#      - ./secrets:/secrets:ro
+#    environment:
+#      - "VALKEY_HOST=paysprint-cache"
+#      - "VALKEY_PORT=6379"
+#      - "DB_HOST=paysprint-postgres"
+#    secrets:
+#      - jwt_shared_secret
+#      - pg_master_pass
+#    healthcheck:
+#      test: ["CMD-SHELL", "nc -z localhost 8080 || exit 1"]
+#      interval: 5s
+#      timeout: 5s
+#      retries: 5
+#    depends_on:
+#      paysprint-cache:
+#        condition: service_healthy
+#      paysprint-postgres:
+#        condition: service_healthy
 
 networks:
   paysprint-network:

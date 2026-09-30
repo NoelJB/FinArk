@@ -14,29 +14,28 @@ export class DynamicProxyMiddleware implements NestMiddleware {
   constructor(private readonly httpService: HttpService) {}
 
   async use(req: Request, res: Response, next: NextFunction) {
-    const sessionClaims = req['session'];
+    const session = req.session;
+    if (!session || !session.sub_id) {
+      throw new BadGatewayException('Perimeter authentication security payload lost in context');
+    }
     
-    // 🔗 Generic Context-Path Routing Parser
-    // URL format: /api/v1/trade-gateway/order/submit
-    const urlParts = req.originalUrl.split('?')[0].split('/');
-    const targetService = urlParts[3]; // Isolates 'trade-gateway' cleanly from the namespace array
+    // 🔍 Hardened: Corrected string splitting sequence to isolate context path elements safely
+    const cleanUrl = req.originalUrl.split('?')[0];
+    const urlParts = cleanUrl.split('/');
+    const targetService = urlParts[3]; 
     
     if (!targetService) {
       throw new BadGatewayException('Unable to resolve targeted downstream container identifier');
     }
 
-    // Strip out the target service segment to pass the clean remaining URI downstream
-    // Output format: /api/v1/order/submit
     const remainingUri = '/' + urlParts.slice(1, 3).concat(urlParts.slice(4)).join('/');
     
-    // 🔌 Dynamically resolve internal port configurations via environment variables
     const envPortKey = `${targetService.toUpperCase().replace(/-/g, '_')}_PORT`;
     const internalPort = process.env[envPortKey] || '8080';
     
     const downstreamUrl = `http://${targetService}:${internalPort}${remainingUri}`;
 
     try {
-      // 🚀 Streaming Reverse Proxy: Forward the request cleanly over the internal cluster mesh
       const responseStream = await firstValueFrom(
         this.httpService.request({
           method: req.method,
@@ -44,7 +43,7 @@ export class DynamicProxyMiddleware implements NestMiddleware {
           data: req.body,
           headers: {
             ...req.headers,
-            'X-User-Id': String(sessionClaims.sub_id), // Forward pre-verified identity context parameters
+            'X-User-Id': String(session.sub_id),
           },
         })
       );

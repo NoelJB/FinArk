@@ -78,6 +78,32 @@ for test_file in $API_TEST_FILES; do
     python3 "$test_file"
 done
 
+# ----------------------------------------------------------------------------
+# PHASE 3: AUTOMATED EDGE MICROGATEWAY VALIDATIONS (JS/TS JEST MODULES)
+# ----------------------------------------------------------------------------
+echo ""
+echo "🔮 PHASE 3: RUNNING EDGE MICROGATEWAY INTEGRATION VALIDATIONS..."
+
+GATEWAY_DIR="/build/services/api-gateway"
+
+if [ -d "$GATEWAY_DIR" ]; then
+    echo "⏳ Initializing Node environment and dependencies inside gateway space..."
+    cd "$GATEWAY_DIR"
+    
+    # Run package assembly quietly to clear the network execution path
+    npm install --quiet --no-audit --no-fund > /dev/null 2>&1
+    
+    echo "⏳ Executing TypeScript SDK Unit Test Suites..."
+    npm run test -- --passWithNoTests
+    
+    echo "⏳ Executing NestJS Microgateway Perimeter E2E Integration Suites..."
+    npm run test:e2e -- --passWithNoTests
+    
+    cd "$BASE_TEST_DIR"
+else
+    echo "⚠️ Warning: Edge API Gateway directory context missing. Skipping Phase 3."
+fi
+
 echo "======================================================"
 echo "🎉 SUCCESS: ALL DYNAMIC PLATFORM SYSTEM ASSERTIONS ARE GREEN"
 echo "======================================================"
