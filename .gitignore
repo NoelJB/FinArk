@@ -220,3 +220,48 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# ============================================================================
+# FINARK ORCHESTRATION PIPELINE - WORKSPACE DEFENSIVE PLUGINS
+# Target File: .gitignore | BRS Mapping: Toolchain Insulation Boundaries
+# ============================================================================
+
+# 📝 Editor & Unix System Transient Cache Protections
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+.elisa
+.DS_Store
+Thumbs.db
+
+# ☕ Java & Maven Multi-Stage Target Exclusions
+target/
+*.class
+*.jar
+*.war
+*.ear
+*.nar
+.mvn/
+.factorypath
+.project
+.classpath
+.settings/
+
+# 🟢 Node.js & Vitest Ecosystem Exclusions
+node_modules/
+/build/dist
+/services/api-gateway/dist
+/services/api-gateway/coverage
+.npm
+.eslintcache
+.vitest.cache/
+vite.config.ts.timestamp-*
+vitest.config.ts.timestamp-*
+
+# 🗺️ FinArk Internal Context Tooling Exclusions
+extract_global_context.py
+gateway_clean_context.txt
+finark_global_context.txt
