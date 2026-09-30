@@ -1,12 +1,13 @@
 # syntax=docker/dockerfile:1
 # ============================================================================
-# FINARK PLATFORM - AUTOMATED REGRESSION HARNESS ENVIRONMENT BluePrint
+# FINARK PLATFORM - AUTOMATED REGRESSION HARNESS ENVIRONMENT BLUEPRINT
 # Target File: test/Dockerfile | BRS Mapping: BR-14 Unified DevOps Engine
 # ============================================================================
 
-FROM alpine:3.19
+# ☕ Hardened: Locked strictly to the official Eclipse Temurin Java 25 LTS alpine container base
+FROM eclipse-temurin:25-jdk-alpine
 
-# 🔐 Hardened: Bundled Node.js & npm natively to support Phase 3 edge gateway validations
+# 🔐 Hardened: Provision complete native compiler engines for Node, Python, and Maven
 RUN apk add --no-cache \
     bash \
     python3 \
@@ -16,7 +17,8 @@ RUN apk add --no-cache \
     netcat-openbsd \
     postgresql16-client \
     nodejs \
-    npm
+    npm \
+    maven
 
 WORKDIR /test
 

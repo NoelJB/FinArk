@@ -104,6 +104,36 @@ else
     echo "⚠️ Warning: Edge API Gateway directory context missing. Skipping Phase 3."
 fi
 
+# ----------------------------------------------------------------------------
+# PHASE 4: AUTOMATED JAVA CORE VALIDATIONS (JVM JUNIT 5 MODULES)
+# ----------------------------------------------------------------------------
+echo ""
+echo "🔮 PHASE 4: RUNNING JAVA CORE SDK COMPILATION VALIDATIONS..."
+
+HOST_JAVA_SDK_DIR="/packages/finark-core-java"
+WRITABLE_WORKSPACE="/tmp/finark-core-java"
+
+if [ -d "$HOST_JAVA_SDK_DIR" ]; then
+    echo "⏳ Initializing temporary writable JVM scratch space..."
+    rm -rf "$WRITABLE_WORKSPACE"
+    mkdir -p "$WRITABLE_WORKSPACE"
+    
+    # Sync the immutable source files into the container's private writable memory space
+    cp -R "$HOST_JAVA_SDK_DIR/." "$WRITABLE_WORKSPACE/"
+    
+    cd "$WRITABLE_WORKSPACE"
+    
+    echo "⏳ Compiling Java library and executing JUnit 5 test suites natively..."
+    # Points local dependency caching to a writable directory to clear network path issues
+    mvn test -B -Dmaven.repo.local=/tmp/.m2
+    
+    cd "$BASE_TEST_DIR"
+    rm -rf "$WRITABLE_WORKSPACE"
+else
+    echo "⚠️ Warning: Shared Java Core SDK directory missing. Skipping Phase 4."
+fi
+
+
 echo "======================================================"
 echo "🎉 SUCCESS: ALL DYNAMIC PLATFORM SYSTEM ASSERTIONS ARE GREEN"
 echo "======================================================"
