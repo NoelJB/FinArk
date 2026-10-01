@@ -58,7 +58,8 @@ services:
         condition: service_healthy
     entrypoint: >
       bash -c "
-        echo '⏳ Initiating automatic production topic provisioning...' &&
+        echo '⏳ Waiting for Kafka cluster synchronization controller states...' &&
+        sleep 3 &&
         kafka-topics --create --if-not-exists --bootstrap-server paysprint-kafka:29092 --partitions 1 --replication-factor 1 --topic execution-ledger &&
         kafka-topics --create --if-not-exists --bootstrap-server paysprint-kafka:29092 --partitions 1 --replication-factor 1 --topic compliance-alerts &&
         echo '✅ Production event streaming channels successfully mapped!'
@@ -107,7 +108,6 @@ services:
       timeout: 5s
       retries: 5
 
-
   test-runner:
     build:
       context: .
@@ -125,6 +125,7 @@ services:
       - ./secrets:/secrets:ro
       - ./services/api-gateway:/build/services/api-gateway
       - /build/services/api-gateway/node_modules
+      - ./services/order-placement-service:/build/services/order-placement-service
     command: ["/bin/bash", "/test/run-tests.sh"]
     environment:
       - DB_HOST=paysprint-postgres
@@ -136,7 +137,7 @@ services:
       paysprint-postgres:
         condition: service_healthy
       paysprint-auth:
-        condition: service_healthy # 🔐 Hardened: Hold the runner back until the web service settles completely
+        condition: service_healthy
 
   # ----------------------------------------------------------------------------
   # 🟢 THE PERIMETER MICROGATEWAY (NESTJS / TYPESCRIPT TIER)
@@ -171,46 +172,55 @@ services:
  #       condition: service_healthy
 
   # ----------------------------------------------------------------------------
-  # ☕ THE INGESTION ORDER MANAGEMENT SYSTEM (SPRING BOOT / JAVA 21 TIER)
+  # ☕ THE ORDER PLACEMENT ENGINE (SPRING BOOT / JAVA 25 TIER)
   # ----------------------------------------------------------------------------
 
-#  trade-gateway:
-#    build:
-#      context: ./services/trade-gateway
-#      dockerfile: Dockerfile
-#      additional_contexts:
-#        # 🔌 Inject the shared Java core package module via BuildKit
-#        finark_core_java_src: ./packages/finark-core-java
-#    container_name: trade-gateway
-#    networks:
-#      - paysprint-network
-#    volumes:
-#      - ./services/trade-gateway:/build
-#      - ./secrets:/secrets:ro
-#    environment:
-#      - "VALKEY_HOST=paysprint-cache"
-#      - "VALKEY_PORT=6379"
-#      - "DB_HOST=paysprint-postgres"
-#    secrets:
-#      - jwt_shared_secret
-#      - pg_master_pass
-#    healthcheck:
-#      test: ["CMD-SHELL", "nc -z localhost 8080 || exit 1"]
-#      interval: 5s
-#      timeout: 5s
-#      retries: 5
-#    depends_on:
-#      paysprint-cache:
-#        condition: service_healthy
-#      paysprint-postgres:
-#        condition: service_healthy
-
-networks:
-  paysprint-network:
-    name: paysprint-network
+  order-placement-service:
+    build:
+      context: ./services/order-placement-service
+      dockerfile: Dockerfile
+      additional_contexts:
+        finark_core_java_src: ./packages/finark-core-java
+    container_name: order-placement-service
+    networks:
+      - paysprint-network
+    volumes:
+      - ./services/order-placement-service:/app
+      - /app/target
+      - ./secrets:/secrets:ro
+    environment:
+      - "VALKEY_HOST=paysprint-cache"
+      - "VALKEY_PORT=6379"
+      - "DB_HOST=paysprint-postgres"
+      # 🔐 Hardened: Direct Spring Boot to read credentials straight from secure container secret file volumes
+      - "FAUXNANCE_API_URL_FILE=/run/secrets/fauxnance_api_url"
+      - "FAUXNANCE_API_KEY_FILE=/run/secrets/fauxnance_api_key"
+    secrets:
+      - jwt_shared_secret
+      - pg_master_pass
+      - fauxnance_api_url
+      - fauxnance_api_key
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 8080 || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    depends_on:
+      paysprint-cache:
+        condition: service_healthy
+      paysprint-postgres:
+        condition: service_healthy
 
 secrets:
   pg_master_pass:
     file: ./secrets/pg_master_pass.txt
   jwt_shared_secret:
     file: ./secrets/jwt_shared_secret.txt
+  fauxnance_api_url:
+    file: ./secrets/fauxnance_api_url.txt
+  fauxnance_api_key:
+    file: ./secrets/fauxnance_api_key.txt
+
+networks:
+  paysprint-network:
+    name: paysprint-network

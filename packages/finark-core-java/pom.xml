@@ -14,16 +14,14 @@
     <packaging>jar</packaging>
 
     <properties>
-        <!-- ☕ Hardened: Upgraded compiler targets to match Java 25 LTS baseline requirements -->
         <maven.compiler.source>25</maven.compiler.source>
         <maven.compiler.target>25</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         
-        <!-- Pinned dependencies matching Spring Boot 4.x runtime standards -->
-        <junit.version>5.11.3</junit.version>
-        <lettuce.version>6.5.1.RELEASE</lettuce.version>
+        <junit.version>6.0.3</junit.version> <!-- Aligned with Spring Boot 4.1.1 test dependencies -->
+        <lettuce.version>7.5.2.RELEASE</lettuce.version>
         <jwt.version>4.4.0</jwt.version>
-        <mockito.version>5.14.2</mockito.version>
+        <mockito.version>5.23.0</mockito.version>
     </properties>
 
     <dependencies>
@@ -32,6 +30,14 @@
             <groupId>io.lettuce</groupId>
             <artifactId>lettuce-core</artifactId>
             <version>${lettuce.version}</version>
+
+	    <!-- 🛡️ TRANSITIVE INSULATION: Drop the conflicting auth plugin from the engine entirely -->
+	    <exclusions>
+              <exclusion>
+		<groupId>redis.clients.authentication</groupId>
+		<artifactId>redis-authx-core</artifactId>
+              </exclusion>
+	    </exclusions>
         </dependency>
         
         <!-- 🔐 Cryptographic JSON Web Token parser token decoding matrix -->
@@ -72,6 +78,18 @@
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
             <version>2.18.2</version>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-context</artifactId>
+            <version>7.0.9</version>
+            <scope>provided</scope> <!-- Provided ensures it uses the host Spring Boot runtime version -->
+        </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-web</artifactId>
+            <version>7.0.9</version>
+            <scope>provided</scope>
         </dependency>
     </dependencies>
 

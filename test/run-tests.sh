@@ -1,20 +1,25 @@
 #!/usr/bin/env bash
 # ============================================================================
-# FINARK PLATFORM - MASTER AUTOMATED REGRESSION HARNESS
+# FINARK PLATFORM - MASTER AUTOMATED HYBRID DISCOVERY HARNESS
 # Target File: test/run-tests.sh | BRS Mapping: BR-14 Universal Automation
 # ============================================================================
 
 set -euo pipefail
 
-# Calculate the base execution path dynamically
-BASE_TEST_DIR="$(cd "$(dirname "${BASH_SOURCE}")" && pwd)"
+# Calculate the base execution paths dynamically
+export BASE_TEST_DIR="$(cd "$(dirname "${BASH_SOURCE}")" && pwd)"
+export REPO_ROOT="$(cd "${BASE_TEST_DIR}/.." && pwd)"
 DB_TEST_DIR="${BASE_TEST_DIR}/db"
 API_TEST_DIR="${BASE_TEST_DIR}/api"
 
-# 🔐 RESTORED & OPTIMIZED: NATIVE DATA TIER STABILIZATION GATES
-# Uses the pre-baked postgresql16-client inside the image footprint instantly
+# 🔐 Establish native database tier connectivity variables using secrets vault mounts
 export PGPASSWORD=$(cat /secrets/pg_master_pass.txt)
 
+echo "======================================================"
+echo "🚀 FINARK AUTOMATED REGRESSION & DISCOVERY HARNESS"
+echo "======================================================"
+
+# 🚦 1. NATIVE CORE DATA TIER STABILIZATION GATES
 echo "⏳ Phase 1: Polling database container TCP port availability..."
 until pg_isready -h "$DB_HOST" -U postgres -d paysprint > /dev/null 2>&1; do
   sleep 1
@@ -28,25 +33,19 @@ done
 echo "🧪 Data tier stabilized. Injecting testing fixture dataset..."
 psql -h "$DB_HOST" -U postgres -d paysprint -f /fixtures/00-test-seed.sql > /dev/null
 
-echo "======================================================"
-echo "🚀 FINARK AUTOMATED REGRESSION HARNESS"
-echo "======================================================"
-
 # ----------------------------------------------------------------------------
-# PHASE 1: AUTOMATED DATABASE TIER TESTS (SQL MODULES)
+# 🐘 PHASE 1: AUTOMATED DATABASE TIER TESTS (SQL ASSERTION PLUGINS)
 # ----------------------------------------------------------------------------
+echo ""
 echo "🔮 PHASE 1: RUNNING RELATIONAL DATA MODEL VALIDATIONS..."
 
 DB_TEST_FILES=$(find "$DB_TEST_DIR" -maxdepth 1 -type f -name "[0-9][0-9]-*.sql" | sort)
 
 for test_file in $DB_TEST_FILES; do
     file_name=$(basename "$test_file")
-    echo "⏳ Executing dynamic test module: ${file_name}..."
+    echo "⏳ Executing dynamic database assertion module: ${file_name}..."
     
     BUFFER_FILE=$(mktemp)
-    
-    # 🔐 Hardened: Append "|| true" to prevent exit code warnings from tripping 'set -e'
-    # The output is captured in the buffer file, so our awk engine will still catch real failures!
     psql -h "$DB_HOST" -U postgres -d paysprint -A -t -F ',' -f "$test_file" > "$BUFFER_FILE" 2>&1 || true
 
     if grep -E "ASSERT" "$BUFFER_FILE" | awk -F ',' '$3 != $4' | grep . > /dev/null; then
@@ -57,12 +56,13 @@ for test_file in $DB_TEST_FILES; do
     fi
     rm -f "$BUFFER_FILE"
 done
+echo "✅ Phase 1 Relational Data Model Assertions passed cleanly."
 
 # ----------------------------------------------------------------------------
-# PHASE 2: AUTOMATED MICROSERVICE API TESTS (PYTHON MODULES)
+# 🐍 PHASE 2: AUTOMATED IDENTITY PLATFORM TESTS (PYTHON CORE INTERFACES)
 # ----------------------------------------------------------------------------
 echo ""
-echo "🔮 PHASE 2: RUNNING CONTAINER NETWORK API VALIDATIONS..."
+echo "🔮 PHASE 2: RUNNING IDENTITY PROVIDER CONNECTOR VALIDATIONS..."
 
 echo "⏳ Syncing internal core library source code into local scratch space..."
 mkdir -p /tmp/finark-core
@@ -77,63 +77,59 @@ for test_file in $API_TEST_FILES; do
     echo "⏳ Executing dynamic API test module: ${file_name}..."
     python3 "$test_file"
 done
+echo "✅ Phase 2 Identity Provider Network Assertions passed cleanly."
 
 # ----------------------------------------------------------------------------
-# PHASE 3: AUTOMATED EDGE MICROGATEWAY VALIDATIONS (JS/TS JEST MODULES)
-# ----------------------------------------------------------------------------
-echo ""
-echo "🔮 PHASE 3: RUNNING EDGE MICROGATEWAY INTEGRATION VALIDATIONS..."
-
-GATEWAY_DIR="/build/services/api-gateway"
-
-if [ -d "$GATEWAY_DIR" ]; then
-    echo "⏳ Initializing Node environment and dependencies inside gateway space..."
-    cd "$GATEWAY_DIR"
-    
-    # Run package assembly quietly to clear the network execution path
-    npm install --quiet --no-audit --no-fund > /dev/null 2>&1
-    
-    echo "⏳ Executing TypeScript SDK Unit Test Suites..."
-    npm run test -- --passWithNoTests
-    
-    echo "⏳ Executing NestJS Microgateway Perimeter E2E Integration Suites..."
-    npm run test:e2e -- --passWithNoTests
-    
-    cd "$BASE_TEST_DIR"
-else
-    echo "⚠️ Warning: Edge API Gateway directory context missing. Skipping Phase 3."
-fi
-
-# ----------------------------------------------------------------------------
-# PHASE 4: AUTOMATED JAVA CORE VALIDATIONS (JVM JUNIT 5 MODULES)
+# 🔍 PHASE 3: PLUG-AND-PLAY DYNAMIC TEST SUITE DISCOVERY HARNESS
 # ----------------------------------------------------------------------------
 echo ""
-echo "🔮 PHASE 4: RUNNING JAVA CORE SDK COMPILATION VALIDATIONS..."
+echo "🔮 PHASE 3: SCANNING PROJECT MICROSERVICES VIA PLUG-AND-PLAY LOOKUPS..."
 
-HOST_JAVA_SDK_DIR="/packages/finark-core-java"
-WRITABLE_WORKSPACE="/tmp/finark-core-java"
+PASSED_PLUGINS=()
+FAILED_PLUGINS=()
 
-if [ -d "$HOST_JAVA_SDK_DIR" ]; then
-    echo "⏳ Initializing temporary writable JVM scratch space..."
-    rm -rf "$WRITABLE_WORKSPACE"
-    mkdir -p "$WRITABLE_WORKSPACE"
+# Replace Phase 3 suite discovery harness loop with this context-aware execution block:
+while IFS= read -r script_path; do
+    CONTEXT_NAME=$(basename "$(dirname "$script_path")")
+    echo "------------------------------------------------------"
+    echo "🏃 Invoking Discovered Harness Loop: [${CONTEXT_NAME}]"
+    echo "👉 Path mapping: ${script_path}"
     
-    # Sync the immutable source files into the container's private writable memory space
-    cp -R "$HOST_JAVA_SDK_DIR/." "$WRITABLE_WORKSPACE/"
-    
-    cd "$WRITABLE_WORKSPACE"
-    
-    echo "⏳ Compiling Java library and executing JUnit 5 test suites natively..."
-    # Points local dependency caching to a writable directory to clear network path issues
-    mvn test -B -Dmaven.repo.local=/tmp/.m2
-    
-    cd "$BASE_TEST_DIR"
-    rm -rf "$WRITABLE_WORKSPACE"
-else
-    echo "⚠️ Warning: Shared Java Core SDK directory missing. Skipping Phase 4."
+    # Step into the specific microservice subfolder before executing its local script
+    pushd "$(dirname "$script_path")" > /dev/null
+    if /bin/bash "harness-run.sh"; then
+        PASSED_PLUGINS+=("$CONTEXT_NAME")
+    else
+        FAILED_PLUGINS+=("$CONTEXT_NAME")
+    fi
+    popd > /dev/null
+done < <(find "$REPO_ROOT" -type f -name "harness-run.sh" | sort)
+
+# ----------------------------------------------------------------------------
+# 📊 PHASE 4: RECONCILIATION SUMMARY REPORT LOG
+# ----------------------------------------------------------------------------
+echo ""
+echo "======================================================"
+echo "📊 FINARK REGRESSION STATE EXECUTION SUMMARY"
+echo "======================================================"
+
+if [ ${#PASSED_PLUGINS[@]} -gt 0 ]; then
+    echo "✅ Successful Discovered Plugins:"
+    for service in "${PASSED_PLUGINS[@]}"; do 
+        echo "   • $service"
+    done
 fi
 
+if [ ${#FAILED_PLUGINS[@]} -gt 0 ]; then
+    echo ""
+    echo "❌ Defective/Broken Discovered Plugins:"
+    for service in "${FAILED_PLUGINS[@]}"; do 
+        echo "   • $service"
+    done
+    echo "======================================================"
+    exit 1
+fi
 
 echo "======================================================"
-echo "🎉 SUCCESS: ALL DYNAMIC PLATFORM SYSTEM ASSERTIONS ARE GREEN"
+echo "🎉 SUCCESS: ALL REPOSITORY CONTEXT SUITES ARE 100% GREEN"
 echo "======================================================"

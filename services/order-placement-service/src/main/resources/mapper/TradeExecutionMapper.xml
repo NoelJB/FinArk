@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- ============================================================================
+// FINARK PLATFORM - LEDGER PERSISTENCE IMPLEMENTATION
+// Target File: services/order-placement-service/src/main/resources/mapper/TradeExecutionMapper.xml
+// ============================================================================ -->
+<mapper namespace="com.finark.order.mapper.TradeExecutionMapper">
+
+    <insert id="insertExecution">
+        INSERT INTO trade_execution (
+            client_id,
+            instrument_id,
+            side,
+            quantity,
+            execution_price,
+            executed_at
+        ) VALUES (
+            #{clientId},
+            #{instrumentId},
+            #{side},
+            #{quantity},
+            #{price},
+            CURRENT_TIMESTAMP
+        )
+    </insert>
+
+</mapper>
