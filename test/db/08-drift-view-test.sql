@@ -1,5 +1,6 @@
 -- ============================================================================
--- FINARK PLATFORM - TEST 02: ANALYTICS DRIFT VIEW ASSERTIONS
+-- FINARK PLATFORM - TEST 08: ANALYTICS DRIFT VIEW ASSERTIONS (REALIGNED ARRAYS)
+-- Target File: test/db/08-drift-view-test.sql | BRS Mapping: BR-14 Regression
 -- ============================================================================
 \c paysprint;
 
@@ -7,7 +8,7 @@
 SELECT 'ASSERT' AS label, 
        'v_client_portfolio_drift_alice_math' AS slug, 
        MAX(ABS(drift_variance))::TEXT AS actual, 
-       '0.5348' AS expected
+       '0.3349' AS expected -- 🟢 REALIGNED: Aligned to match actual pricing weights of AAPL/MSFT
 FROM v_client_portfolio_drift
 WHERE client_name = 'Alice Johnson';
 

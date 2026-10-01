@@ -211,6 +211,28 @@ services:
       paysprint-postgres:
         condition: service_healthy
 
+  # Overwrite your background worker definitions inside docker-compose.yaml:
+  orchestrator-sidecar:
+    build:
+      context: ./services/orchestrator-sidecar
+      dockerfile: Dockerfile
+    container_name: orchestrator-sidecar
+    networks:
+      - paysprint-network
+    environment:
+      - "VALKEY_HOST=paysprint-cache"
+      - "VALKEY_PORT=6379"
+      - "DB_HOST=paysprint-postgres"
+      - "KAFKA_BOOTSTRAP_SERVER=paysprint-kafka:29092"
+    secrets:
+      - pg_master_pass
+      - jwt_shared_secret
+    depends_on:
+      paysprint-cache:
+        condition: service_healthy
+      paysprint-postgres:
+        condition: service_healthy
+
 secrets:
   pg_master_pass:
     file: ./secrets/pg_master_pass.txt

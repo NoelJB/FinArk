@@ -20,8 +20,6 @@ public class OrderPlacementService {
 
     private final TradeExecutionMapper mapper;
     private final MarketDataService marketDataService;
-    
-    private static final int CASH_INSTRUMENT_ID = 3; // CASHGBP inside database fixtures
     private static final BigDecimal MAX_PRICE_VARIANCE = new BigDecimal("0.05"); // 5% Variance Cap
 
     public OrderPlacementService(TradeExecutionMapper mapper, MarketDataService marketDataService) {
@@ -32,19 +30,18 @@ public class OrderPlacementService {
     @Transactional
     public void processPreTradeOrderPlacement(int verifiedContextUserId, OrderSubmitRequest order) {
         
-        // 🔒 MULTI-TENANT OWNERSHIP GUARD: Assert that verified header matches payload request
-        int targetedClientId = order.clientId();
-        if (verifiedContextUserId != targetedClientId) {
+        // 🔒 MULTI-TENANT OWNERSHIP GUARD
+        if (verifiedContextUserId != order.clientId()) {
             throw new IllegalArgumentException("Security Violation: Resource ownership mismatch. Operation aborted.");
         }
 
-        // 🔍 Resolve internal surrogate primary key integer ID from string ticker via MyBatis
+        // Resolve internal surrogate instrument ID
         Integer internalInstrumentId = mapper.getInstrumentIdByTicker(order.ticker());
         if (internalInstrumentId == null) {
             throw new IllegalArgumentException("Pre-Trade Violation: Targeted asset ticker '" + order.ticker() + "' not recognized.");
         }
 
-        // 🌐 Price Variance Guard targeting our Shared Read-Through SDK Layer
+        // Price Variance Guard targeting our Shared Read-Through SDK Layer
         BigDecimal currentMarketPrice = marketDataService.getCurrentPrice(internalInstrumentId, order.ticker());
         if (currentMarketPrice == null) {
             throw new IllegalArgumentException("Pre-Trade Violation: Targeted security price could not be resolved from cloud endpoint.");
@@ -57,20 +54,33 @@ public class OrderPlacementService {
         }
 
         // 🛡️ Cash coverage and short-sale controls block transactions natively
-        if ("BUY".equalsIgnoreCase(order.side())) {
-            BigDecimal totalOrderCost = order.quantity().multiply(order.price());
-            BigDecimal availableCash = mapper.getClientAssetBalance(targetedClientId, CASH_INSTRUMENT_ID);
-            if (availableCash.compareTo(totalOrderCost) < 0) {
-                throw new IllegalArgumentException("Pre-Trade Violation: Insufficient financial capital available.");
-            }
-        } else if ("SELL".equalsIgnoreCase(order.side())) {
-            BigDecimal availableShares = mapper.getClientAssetBalance(targetedClientId, internalInstrumentId);
+	// services/order-placement-service/src/main/java/com/finark/order/service/OrderPlacementService.java
+	if ("BUY".equalsIgnoreCase(order.side())) {
+    
+	    // 🟢 DYNAMIC RESOLUTION: Fetch the true settlement currency of the asset from the DB master
+	    String targetCurrency = mapper.getCurrencyByInstrumentId(internalInstrumentId);
+	    if (targetCurrency == null) {
+		throw new IllegalStateException("System Error: Traded asset currency boundary is unmapped.");
+	    }
+
+	    Integer cashInstrumentId = mapper.getCashInstrumentIdByCurrency(targetCurrency);
+	    if (cashInstrumentId == null) {
+		throw new IllegalStateException("System Error: Capital settlement ledger for currency '" + targetCurrency + "' is uninitialized.");
+	    }
+
+	    BigDecimal totalOrderCost = order.quantity().multiply(order.price());
+	    BigDecimal availableCash = mapper.getClientAssetBalance(order.clientId(), cashInstrumentId);
+	    if (availableCash.compareTo(totalOrderCost) < 0) {
+		throw new IllegalArgumentException("Pre-Trade Violation: Insufficient financial capital available.");
+	    }
+	} else if ("SELL".equalsIgnoreCase(order.side())) {
+            BigDecimal availableShares = mapper.getClientAssetBalance(order.clientId(), internalInstrumentId);
             if (availableShares.compareTo(order.quantity()) < 0) {
                 throw new IllegalArgumentException("Pre-Trade Violation: Insufficient share inventory. Uncollateralized short sales blocked.");
             }
         }
 
         // Route direct append-only insertion straight to the ledger
-        mapper.insertExecution(targetedClientId, internalInstrumentId, order.side().toUpperCase(), order.quantity(), order.price());
+        mapper.insertExecution(order.clientId(), internalInstrumentId, order.side().toUpperCase(), order.quantity(), order.price());
     }
 }

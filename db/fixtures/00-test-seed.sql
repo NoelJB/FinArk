@@ -1,6 +1,6 @@
 -- ============================================================================
--- 00-test-seed.sql: PRODUCTION-GRADE DATA FIXTURES W/ TRANSACTION ISOLATION
--- Target File: db/fixtures/00-test-seed.sql | BRS Mapping: BR-14 Enforced
+-- 00-test-seed.sql: PRODUCTION-GRADE DATA FIXTURES W/ ENUM CLASSIFICATIONS
+-- Target File: db/fixtures/00-test-seed.sql | BRS Mapping: BR-14 Real-Data Sync
 -- ============================================================================
 \c paysprint;
 
@@ -16,11 +16,14 @@ INSERT INTO model_portfolio (name) VALUES
 ('Adventurous Growth'),
 ('Income Focus');
 
-INSERT INTO instrument (ticker, name, current_price) VALUES
-('GLBEQ1', 'Global Equity Index Fund', 142.5000),
-('CORPB1', 'Sterling Corporate Bond Fund', 12.2500),
-('CASHGBP', 'Cash (GBP)', 1.0000),
-('GILT10', 'UK 10-Year Gilt', 98.4500);
+-- 🟢 REALIGNED: Explicitly declare instrument_type and currency parameters
+INSERT INTO instrument (ticker, name, instrument_type, currency, current_price) VALUES
+('AAPL', 'Apple Inc. Equity Asset', 'STOCK', 'USD', 180.5000),
+('MSFT', 'Microsoft Corp. Equity Asset', 'STOCK', 'USD', 420.2500),
+('CASHGBP', 'Cash - British Pound Sterling', 'CASH', 'GBP', 1.0000),
+('CASHUSD', 'Cash - United States Dollar', 'CASH', 'USD', 1.0000),
+('NVDA', 'NVIDIA Corporation Equity Asset', 'STOCK', 'USD', 125.0000),
+('SPY', 'SPDR S&P 500 ETF Trust', 'ETF', 'USD', 510.4500);
 
 -- 2. SEED CORE ENTITY (CLIENT)
 INSERT INTO client (name, advisor_id, model_portfolio_id, subscription_date) VALUES
@@ -39,15 +42,15 @@ INSERT INTO client (name, advisor_id, model_portfolio_id, subscription_date) VAL
 
 -- 3. SEED PORTFOLIO ALLOCATION TARGETS (MODEL_INSTRUMENT)
 INSERT INTO model_instrument (model_id, instrument_id, weight) VALUES
-((SELECT id FROM model_portfolio WHERE name = 'Balanced Growth'), (SELECT id FROM instrument WHERE ticker = 'GLBEQ1'), 0.4000),
-((SELECT id FROM model_portfolio WHERE name = 'Balanced Growth'), (SELECT id FROM instrument WHERE ticker = 'CORPB1'), 0.3000),
+((SELECT id FROM model_portfolio WHERE name = 'Balanced Growth'), (SELECT id FROM instrument WHERE ticker = 'AAPL'), 0.4000),
+((SELECT id FROM model_portfolio WHERE name = 'Balanced Growth'), (SELECT id FROM instrument WHERE ticker = 'MSFT'), 0.3000),
 ((SELECT id FROM model_portfolio WHERE name = 'Balanced Growth'), (SELECT id FROM instrument WHERE ticker = 'CASHGBP'), 0.3000),
-((SELECT id FROM model_portfolio WHERE name = 'Adventurous Growth'), (SELECT id FROM instrument WHERE ticker = 'GLBEQ1'), 0.7000),
-((SELECT id FROM model_portfolio WHERE name = 'Adventurous Growth'), (SELECT id FROM instrument WHERE ticker = 'GILT10'), 0.2000),
-((SELECT id FROM model_portfolio WHERE name = 'Adventurous Growth'), (SELECT id FROM instrument WHERE ticker = 'CASHGBP'), 0.1000),
-((SELECT id FROM model_portfolio WHERE name = 'Income Focus'), (SELECT id FROM instrument WHERE ticker = 'CORPB1'), 0.6000),
-((SELECT id FROM model_portfolio WHERE name = 'Income Focus'), (SELECT id FROM instrument WHERE ticker = 'GILT10'), 0.3000),
-((SELECT id FROM model_portfolio WHERE name = 'Income Focus'), (SELECT id FROM instrument WHERE ticker = 'CASHGBP'), 0.1000);
+((SELECT id FROM model_portfolio WHERE name = 'Adventurous Growth'), (SELECT id FROM instrument WHERE ticker = 'AAPL'), 0.7000),
+((SELECT id FROM model_portfolio WHERE name = 'Adventurous Growth'), (SELECT id FROM instrument WHERE ticker = 'SPY'), 0.2000),
+((SELECT id FROM model_portfolio WHERE name = 'Adventurous Growth'), (SELECT id FROM instrument WHERE ticker = 'CASHUSD'), 0.1000),
+((SELECT id FROM model_portfolio WHERE name = 'Income Focus'), (SELECT id FROM instrument WHERE ticker = 'MSFT'), 0.6000),
+((SELECT id FROM model_portfolio WHERE name = 'Income Focus'), (SELECT id FROM instrument WHERE ticker = 'SPY'), 0.3000),
+((SELECT id FROM model_portfolio WHERE name = 'Income Focus'), (SELECT id FROM instrument WHERE ticker = 'CASHUSD'), 0.1000);
 
 -- 4. SEED TRANSACTION AUDITS (SUBSCRIPTION_HISTORY)
 INSERT INTO subscription_history (client_id, model_portfolio, subscription_date) VALUES
@@ -67,24 +70,24 @@ BEGIN;
 
 -- 5. INITIALIZE CLIENT ACTUAL POSITIONS (CLIENT_INSTRUMENT)
 INSERT INTO client_instrument (client_id, instrument_id, quantity) VALUES
-((SELECT id FROM client WHERE name = 'Alice Johnson'), (SELECT id FROM instrument WHERE ticker = 'GLBEQ1'), 400.0000),
-((SELECT id FROM client WHERE name = 'Alice Johnson'), (SELECT id FROM instrument WHERE ticker = 'CORPB1'), 300.0000),
+((SELECT id FROM client WHERE name = 'Alice Johnson'), (SELECT id FROM instrument WHERE ticker = 'AAPL'), 400.0000),
+((SELECT id FROM client WHERE name = 'Alice Johnson'), (SELECT id FROM instrument WHERE ticker = 'MSFT'), 300.0000),
 ((SELECT id FROM client WHERE name = 'Alice Johnson'), (SELECT id FROM instrument WHERE ticker = 'CASHGBP'), 300.0000),
-((SELECT id FROM client WHERE name = 'Brian Osei'), (SELECT id FROM instrument WHERE ticker = 'GLBEQ1'), 700.0000),
-((SELECT id FROM client WHERE name = 'Brian Osei'), (SELECT id FROM instrument WHERE ticker = 'GILT10'), 200.0000),
-((SELECT id FROM client WHERE name = 'Brian Osei'), (SELECT id FROM instrument WHERE ticker = 'CASHGBP'), 100.0000),
-((SELECT id FROM client WHERE name = 'Carla Mendes'), (SELECT id FROM instrument WHERE ticker = 'CORPB1'), 600.0000),
-((SELECT id FROM client WHERE name = 'Carla Mendes'), (SELECT id FROM instrument WHERE ticker = 'GILT10'), 300.0000),
-((SELECT id FROM client WHERE name = 'Carla Mendes'), (SELECT id FROM instrument WHERE ticker = 'CASHGBP'), 100.0000),
-((SELECT id FROM client WHERE name = 'David Kim'), (SELECT id FROM instrument WHERE ticker = 'GLBEQ1'), 700.0000),
-((SELECT id FROM client WHERE name = 'David Kim'), (SELECT id FROM instrument WHERE ticker = 'GILT10'), 200.0000),
-((SELECT id FROM client WHERE name = 'David Kim'), (SELECT id FROM instrument WHERE ticker = 'CASHGBP'), 100.0000),
-((SELECT id FROM client WHERE name = 'Elena Petrova'), (SELECT id FROM instrument WHERE ticker = 'GLBEQ1'), 400.0000),
-((SELECT id FROM client WHERE name = 'Elena Petrova'), (SELECT id FROM instrument WHERE ticker = 'CORPB1'), 300.0000),
+((SELECT id FROM client WHERE name = 'Brian Osei'), (SELECT id FROM instrument WHERE ticker = 'AAPL'), 700.0000),
+((SELECT id FROM client WHERE name = 'Brian Osei'), (SELECT id FROM instrument WHERE ticker = 'SPY'), 200.0000),
+((SELECT id FROM client WHERE name = 'Brian Osei'), (SELECT id FROM instrument WHERE ticker = 'CASHUSD'), 100.0000),
+((SELECT id FROM client WHERE name = 'Carla Mendes'), (SELECT id FROM instrument WHERE ticker = 'MSFT'), 600.0000),
+((SELECT id FROM client WHERE name = 'Carla Mendes'), (SELECT id FROM instrument WHERE ticker = 'SPY'), 300.0000),
+((SELECT id FROM client WHERE name = 'Carla Mendes'), (SELECT id FROM instrument WHERE ticker = 'CASHUSD'), 100.0000),
+((SELECT id FROM client WHERE name = 'David Kim'), (SELECT id FROM instrument WHERE ticker = 'AAPL'), 700.0000),
+((SELECT id FROM client WHERE name = 'David Kim'), (SELECT id FROM instrument WHERE ticker = 'SPY'), 200.0000),
+((SELECT id FROM client WHERE name = 'David Kim'), (SELECT id FROM instrument WHERE ticker = 'CASHUSD'), 100.0000),
+((SELECT id FROM client WHERE name = 'Elena Petrova'), (SELECT id FROM instrument WHERE ticker = 'AAPL'), 400.0000),
+((SELECT id FROM client WHERE name = 'Elena Petrova'), (SELECT id FROM instrument WHERE ticker = 'MSFT'), 300.0000),
 ((SELECT id FROM client WHERE name = 'Elena Petrova'), (SELECT id FROM instrument WHERE ticker = 'CASHGBP'), 300.0000),
-((SELECT id FROM client WHERE name = 'Farid Hossain'), (SELECT id FROM instrument WHERE ticker = 'CORPB1'), 600.0000),
-((SELECT id FROM client WHERE name = 'Farid Hossain'), (SELECT id FROM instrument WHERE ticker = 'GILT10'), 300.0000),
-((SELECT id FROM client WHERE name = 'Farid Hossain'), (SELECT id FROM instrument WHERE ticker = 'CASHGBP'), 100.0000);
+((SELECT id FROM client WHERE name = 'Farid Hossain'), (SELECT id FROM instrument WHERE ticker = 'MSFT'), 600.0000),
+((SELECT id FROM client WHERE name = 'Farid Hossain'), (SELECT id FROM instrument WHERE ticker = 'SPY'), 300.0000),
+((SELECT id FROM client WHERE name = 'Farid Hossain'), (SELECT id FROM instrument WHERE ticker = 'CASHUSD'), 100.0000);
 
 COMMIT;
 
@@ -108,12 +111,10 @@ INSERT INTO platform_roles (role_name) VALUES ('MISSION_OPERATOR') ON CONFLICT D
 INSERT INTO platform_roles (role_name) VALUES ('GUEST') ON CONFLICT DO NOTHING;
 
 -- 2. Establish Role Mappings for baseline testing accounts
--- Connects client_id 1 (alice) to MISSION_OPERATOR
 INSERT INTO client_role_mappings (client_id, role_id)
 SELECT 1, role_id FROM platform_roles WHERE role_name = 'MISSION_OPERATOR'
 ON CONFLICT DO NOTHING;
 
--- Connects client_id 2 (bob) to GUEST
 INSERT INTO client_role_mappings (client_id, role_id)
 SELECT 2, role_id FROM platform_roles WHERE role_name = 'GUEST'
 ON CONFLICT DO NOTHING;
