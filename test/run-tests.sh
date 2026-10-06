@@ -30,8 +30,11 @@ until psql -h "$DB_HOST" -U postgres -d paysprint -t -c "SELECT EXISTS (SELECT 1
   sleep 1
 done
 
+echo "🧪 Data tier stabilized. Injecting instruments dataset..."
+psql -h "$DB_HOST" -U postgres -d paysprint -f /fixtures/00-canonical-instruments.sql > /dev/null
+
 echo "🧪 Data tier stabilized. Injecting testing fixture dataset..."
-psql -h "$DB_HOST" -U postgres -d paysprint -f /fixtures/00-test-seed.sql > /dev/null
+psql -h "$DB_HOST" -U postgres -d paysprint -f /fixtures/01-test-seed.sql > /dev/null
 
 # ----------------------------------------------------------------------------
 # 🐘 PHASE 1: AUTOMATED DATABASE TIER TESTS (SQL ASSERTION PLUGINS)

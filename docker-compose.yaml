@@ -154,6 +154,7 @@ services:
     volumes:
       - ./services/api-gateway:/app
       - /app/node_modules # Protect container modules from host path leaks
+      - /app/dist
       - ./secrets:/secrets:ro
     environment:
       - "VALKEY_HOST=paysprint-cache"
@@ -185,7 +186,7 @@ services:
     networks:
       - paysprint-network
     volumes:
-      - ./services/order-placement-service:/app
+      - ./services/order-placement-service/src:/app/src
       - /app/target
       - ./secrets:/secrets:ro
     environment:
@@ -224,9 +225,12 @@ services:
       - "VALKEY_PORT=6379"
       - "DB_HOST=paysprint-postgres"
       - "KAFKA_BOOTSTRAP_SERVER=paysprint-kafka:29092"
+      - "PYTHONUNBUFFERED=1" # Force Python to flush prints instantly to stdout without buffering
     secrets:
       - pg_master_pass
       - jwt_shared_secret
+      - fauxnance_api_url
+      - fauxnance_api_key
     depends_on:
       paysprint-cache:
         condition: service_healthy

@@ -9,7 +9,7 @@ import sys
 import time
 
 # Import your custom high-performance priority-queue scheduler
-from scheduler import TimerManager, Repeat
+from TimerManager import TimerManager, Repeat
 
 # 🔌 Import individual decoupled microservice tasks as isolated modules
 # This guarantees clear separation of concerns at the source code layer
@@ -18,7 +18,7 @@ from tasks.market_sync import execute_dual_query_sync_pass
 
 def bootstrap_cron_sidecar():
     print("======================================================")
-    echo "🚀 FINARK CONSOLIDATED AUTOMATION SIDECAR INITIALIZED"
+    print("🚀 FINARK CONSOLIDATED AUTOMATION SIDECAR INITIALIZED")
     print("======================================================")
 
     # Initialize the synchronized heap scheduler thread
@@ -28,7 +28,7 @@ def bootstrap_cron_sidecar():
     # ⏱️ TASK 1: Re-aligned 1-Minute Dual-Query Cloud Quota Protection Loop
     # Runs instantly on boot, and repeats indefinitely every 60 seconds
     cron_pool.add_delayed(
-        delay=0, 
+        delay=15, 
         callback=execute_dual_query_sync_pass, 
         repeat=Repeat(delay=60, count=-1), # -1 maps to infinite looping execution
         task_name="market_reference_sync"
