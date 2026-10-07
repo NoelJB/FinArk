@@ -14,7 +14,7 @@ from TimerManager import TimerManager, Repeat
 # 🔌 Import individual decoupled microservice tasks as isolated modules
 # This guarantees clear separation of concerns at the source code layer
 from tasks.market_sync import execute_dual_query_sync_pass
-# from tasks.outbox_poller import execute_outbox_stream_relay  <-- Coming in Milestone 3!
+from tasks.outbox_poller import execute_outbox_stream_relay
 
 def bootstrap_cron_sidecar():
     print("======================================================")
@@ -34,15 +34,25 @@ def bootstrap_cron_sidecar():
         task_name="market_reference_sync"
     )
 
-    # ⏱️ TASK 2: Milestone 3 Asynchronous Outbox Event Stream Poller (Example)
-    # High-frequency iteration: sweeps the outbox queue every 5 seconds
-    # cron_pool.add_delayed(
-        # delay=2, 
-        # callback=execute_outbox_stream_relay, 
-        # repeat=Repeat(delay=5, count=-1), 
-        # task_name="transactional_outbox_poller"
-    # )
+    # ⏱️ TASK 2: Asynchronous Transactional Outbox Event Stream Poller
+    # 🟢 FIXED: Registered as a single-shot initialization trigger pass (repeat=None)
+    # We pass a reschedule function to the service, enabling it to let us know when it is done
 
+    def _resched():
+        cron_pool.add_delayed(
+            5, # Positional delay
+            execute_outbox_stream_relay, # Positional callback entrypoint
+            _resched, # Positional vararg packed cleanly into *args tuple mapping
+            task_name="transactional_outbox_poller" # Keyword argument target
+        )
+
+    # Boot the very first initialization pass 5 seconds after script startup
+    cron_pool.add_delayed(
+        60, 
+        execute_outbox_stream_relay, 
+        _resched, 
+        task_name="transactional_outbox_poller"
+    )
     cron_pool.show_tasks()
 
     try:
@@ -53,6 +63,7 @@ def bootstrap_cron_sidecar():
         print("⏳ Administrative shutdown request received. Purging heap pools...")
         cron_pool.stop()
         cron_pool.join()
+
 
 if __name__ == "__main__":
     bootstrap_cron_sidecar()

@@ -212,7 +212,6 @@ services:
       paysprint-postgres:
         condition: service_healthy
 
-  # Overwrite your background worker definitions inside docker-compose.yaml:
   orchestrator-sidecar:
     build:
       context: ./services/orchestrator-sidecar
@@ -225,16 +224,20 @@ services:
       - "VALKEY_PORT=6379"
       - "DB_HOST=paysprint-postgres"
       - "KAFKA_BOOTSTRAP_SERVER=paysprint-kafka:29092"
-      - "PYTHONUNBUFFERED=1" # Force Python to flush prints instantly to stdout without buffering
+      - "PYTHONUNBUFFERED=1" 
     secrets:
       - pg_master_pass
       - jwt_shared_secret
       - fauxnance_api_url
       - fauxnance_api_key
+    # 🟢 FIXED: Enforce a direct service health gate dependency check link.
+    # This forces the Docker Compose mesh toolchain to register the broker's hostname mapping!
     depends_on:
       paysprint-cache:
         condition: service_healthy
       paysprint-postgres:
+        condition: service_healthy
+      paysprint-kafka:
         condition: service_healthy
 
 secrets:
