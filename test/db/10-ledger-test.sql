@@ -2,7 +2,6 @@
 -- FINARK PLATFORM - TEST 10: IMMUTABLE LEDGER & SETTLEMENT ASSERTIONS
 -- Target File: test/10-ledger-test.sql
 -- ============================================================================
--- test/db/10-ledger-test.sql
 \c paysprint;
 
 -- 1. Execute a mock BUY trade entry into our ledger for David Kim (client_id = 4)

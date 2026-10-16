@@ -1,5 +1,5 @@
 -- ============================================================================
--- 01-schema.sql: CORE TABLE DEFINITIONS & CONSTRAINTS (NORMALIZED CURRENCY)
+-- 01-schema.sql: CORE TABLE DEFINITIONS & CONSTRAINTS (TIMESTAMPTZ GREENFIELD)
 -- Target File: db/core_ddl/01-schema.sql | BRS: BR-14 Green-Field Setup
 -- ============================================================================
 
@@ -20,7 +20,7 @@ CREATE TABLE model_portfolio (
     name VARCHAR(255) NOT NULL
 );
 
--- 🟢 REFACTORED: Embedded explicit enum classifications and sync tracking columns
+-- 🟢 REFACTORED: Converted tracking columns over to TIMESTAMP WITH TIME ZONE
 CREATE TABLE instrument (
     id int GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     ticker VARCHAR(50) NOT NULL UNIQUE,

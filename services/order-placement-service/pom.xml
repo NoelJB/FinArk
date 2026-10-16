@@ -1,12 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- ============================================================================
-// FINARK PLATFORM - ORDER PLACEMENT ENGINE MICROSERVICE MANIFEST
-// Target File: services/order-placement-service/pom.xml | BRS: BR-14 Alignment
+// FINARK PLATFORM - HARDENED ORDER PLACEMENT ENGINE MICROSERVICE MANIFEST
+// Target File: services/order-placement-service/pom.xml
+// BRS Mapping: BR-14 Aligned Spring Boot 4.0.8 / MyBatis 4.0.1 Specification
 // ============================================================================ -->
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
-         http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>com.finark</groupId>
@@ -15,31 +14,18 @@
     <packaging>jar</packaging>
 
     <name>order-placement-service</name>
-    <description>Pre-Trade Ingestion &amp; MyBatis Append-Only Ledger Proxy</description>
+    <description>Pre-Trade Ingestion &amp; Hardened MyBatis 4.x Append-Only Ledger Proxy</description>
 
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>4.1.1</version>
-        <relativePath/>
+        <version>4.0.8</version>
+        <relativePath/> <!-- lookup parent from repository -->
     </parent>
-
-    <!-- CRITICAL FIX: Add this block to force all transitive classpaths to 4.1.1 -->
-    <dependencyManagement>
-        <dependencies>
-            <dependency>
-                <groupId>org.springframework.boot</groupId>
-                <artifactId>spring-boot-dependencies</artifactId>
-                <version>4.1.1</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
-        </dependencies>
-    </dependencyManagement>
 
     <properties>
         <java.version>25</java.version>
-        <mybatis.version>3.0.4</mybatis.version>
+        <mybatis.version>4.0.1</mybatis.version> 
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
@@ -47,15 +33,16 @@
         <!-- Core Spring Web Routing Matrix Layer -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-web</artifactId>
+            <artifactId>spring-boot-starter-webmvc</artifactId>
         </dependency>
 
+        <!-- Stateful Memory Grid Data Redis Invariant Dependencies -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-redis</artifactId>
         </dependency>
 
-        <!-- High-Throughput MyBatis Framework Core Binding Starter -->
+        <!-- High-performance MyBatis 4.x Starter mapping Spring Boot 4.0.8 parameters natively -->
         <dependency>
             <groupId>org.mybatis.spring.boot</groupId>
             <artifactId>mybatis-spring-boot-starter</artifactId>
@@ -69,12 +56,50 @@
             <scope>runtime</scope>
         </dependency>
 
-        <!-- 🧪 Streamlined Spring Boot 4.x Sliced Test Engine (Replaces duplicate tester starter) -->
+        <!-- ============================================================================
+        // 🧪 PRODUCTION-GRADE SPRING BOOT 4.x TEST SLICES
+        // ============================================================================ -->
+        <!-- Aligned test frameworks providing isolated MyBatis slicing layers -->
+        <dependency>
+            <groupId>org.mybatis.spring.boot</groupId>
+            <artifactId>mybatis-spring-boot-starter-test</artifactId>
+            <version>${mybatis.version}</version>
+            <scope>test</scope>
+        </dependency>
+        
+        <!-- Target-scoped Spring Boot 4.x WebMVC slice test runner -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-webmvc-test</artifactId>
             <scope>test</scope>
         </dependency>
+
+        <!-- Target-scoped Spring Boot 4.x Redis slice test runner -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- 🚀 THIS COMPLETELY KILLS THE UNSATISFIED OBJECTMAPPER EXCEPTION: -->
+        <!-- Supplies the missing Spring Boot 4.x testing primitives for Jackson auto-wiring -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-jackson-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+	<dependency>
+	  <groupId>org.springframework.boot</groupId>
+	  <artifactId>spring-boot-starter-actuator</artifactId>
+	</dependency>
+
+	<!-- Gemini AI has massively trained in Spring 3, and keeps failing back.  Let's detected it. -->
+	<dependency>
+	  <groupId>org.springframework.boot</groupId>
+	  <artifactId>spring-boot-properties-migrator</artifactId>
+	  <scope>runtime</scope>
+	</dependency>
 
         <!-- Bind our expanded shared Java Core Chassis SDK library dependency -->
         <dependency>

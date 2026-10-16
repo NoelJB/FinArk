@@ -39,7 +39,8 @@ RUN --mount=type=cache,target=/root/.m2 \
     mvn clean package -B
 
 # STAGE 2: THE HARDENED IMMUTABLE JRE 25 PRODUCTION RUNTIME
-FROM eclipse-temurin:25-jre-alpine
+# FROM eclipse-temurin:25-jdk-alpine
+FROM eclipse-temurin:25-jdk-alpine
 
 WORKDIR /app
 

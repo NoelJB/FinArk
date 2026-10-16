@@ -15,7 +15,7 @@ import java.math.BigDecimal;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/v1/order-placement")
+@RequestMapping("/api/v1") // the local context for this controller, which is at least the root of this service
 public class OrderPlacementController {
 
     private final OrderPlacementService orderPlacementService;
@@ -29,7 +29,13 @@ public class OrderPlacementController {
             @RequestHeader(value = "X-User-Id", required = false) String headerUserId,
             @RequestBody OrderSubmitRequest request) {
 
+        // 🔍 TELEMETRY DIAGNOSTIC
+        System.out.println("☕ [order-placement] Inbound endpoint transaction intercepted under path: POST /api/v1/submit");
+        System.out.println("☕ [order-placement] Telemetry context tracking header - X-User-Id: " + headerUserId);
+        System.out.println("☕ [order-placement] Inbound payload values: " + request);
+
         if (headerUserId == null || headerUserId.trim().isEmpty()) {
+            System.out.println("❌ [order-placement] Execution Blocked: Perimeter verification context missing from request headers");
             return ResponseEntity.status(401).body(Map.of("error", "Perimeter authentication security context missing"));
         }
         
@@ -37,6 +43,7 @@ public class OrderPlacementController {
         try {
             verifiedContextUserId = Integer.parseInt(headerUserId);
         } catch (NumberFormatException e) {
+            System.out.println("❌ [order-placement] Execution Blocked: Malformed X-User-Id context signature parsed");
             return ResponseEntity.badRequest().body(Map.of("error", "Malformed tracking context parameter signature"));
         }
 
@@ -60,14 +67,17 @@ public class OrderPlacementController {
         // Delegate execution down to our decoupled business logic service tier
         try {
             orderPlacementService.processPreTradeOrderPlacement(verifiedContextUserId, request);
+            System.out.println("✅ [order-placement] Pre-Trade Invariants passed. Append-only ledger row generated successfully.");
             return ResponseEntity.ok(Map.of(
                 "status", "ORDER_PLACED_SUCCESSFULLY",
                 "client_id", verifiedContextUserId,
                 "domain_strategy", "DECOUPLED_PRE_TRADE_SERVICE_MATRIX"
             ));
         } catch (IllegalArgumentException e) {
+            System.out.println("❌ [order-placement] Pre-Trade business invariant check failed: " + e.getMessage());
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         } catch (Exception e) {
+            System.out.println("💥 [order-placement] Critical data infrastructure write failure: " + e.getMessage());
             return ResponseEntity.status(500).body(Map.of("error", "Internal business transaction error", "details", e.getMessage()));
         }
     }

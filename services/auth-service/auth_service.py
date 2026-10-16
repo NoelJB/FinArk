@@ -8,6 +8,7 @@ import os
 import sys
 import uuid
 import time
+from datetime import datetime, timezone
 from flask import Flask, request, jsonify
 import jwt
 import pg8000.dbapi
@@ -37,6 +38,7 @@ def load_vault_secret(file_path, env_fallback):
     return os.getenv(env_fallback, "developer-fallback-secret-key-32-bytes-min")
 
 JWT_SECRET = load_vault_secret(SECRET_FILE_PATH, "JWT_SECRET")
+print(f"[auth_service] JWT_SECRET (len is {len(JWT_SECRET)}): {JWT_SECRET[:4]}..{JWT_SECRET[-4:]}")
 DB_PASSWORD = load_vault_secret(PG_PASSWORD_FILE, "DB_PASSWORD")
 
 # 🔌 Initialize our shared platform decentralized state layer connection
@@ -59,7 +61,6 @@ def get_db_connection():
         password=DB_PASSWORD
     )
 
-
 def extract_token_from_header(header_string):
     """Safely isolates the raw string JWT from standard Bearer headers using idiomatic tuple unpacking."""
     if not header_string:
@@ -77,7 +78,6 @@ def extract_token_from_header(header_string):
         
     return None
 
-
 # ----------------------------------------------------------------------------
 # 🔐 ENDPOINT: /login (BR-01 SECURE SIGN-IN VIA DATABASE VERIFICATION)
 # ----------------------------------------------------------------------------
@@ -91,12 +91,9 @@ def login():
         return jsonify({"error": "missing credentials"}), 400
         
     try:
-        # 1. Open the relational database connection handles natively
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        # 🔐 Hardened SQL: Use a LEFT JOIN combined with string_agg to group all 
-        # assigned roles into a single comma-separated string value format.
         query = """
             SELECT cc.client_id, string_agg(pr.role_name, ',') as roles
             FROM client_credentials cc
@@ -112,44 +109,53 @@ def login():
         if not result:
             return jsonify({"error": "invalid username or password"}), 401
             
-        # 🔐 Hardened Unpacking: Extract the unpacked primitive tuple variables safely
         client_id, raw_roles_string = result
         
-        # 🔐 Safe Evaluation Loop: If the user is a fresh registration (like 'noel' in Test B),
-        # raw_roles_string will evaluate to NULL/None. We intercept and apply the default array scope.
         if raw_roles_string:
             assigned_roles = raw_roles_string.split(',')
         else:
             assigned_roles = ["GUEST"]
             
-        # Initialize immutable transaction tokens
         token_uuid = str(uuid.uuid4())
-        now = int(time.time())
+        
+        # 🟢 GREENFIELD UTC ALIGNMENT & PRECISION ENTROPY FIXED:
+        # Force the calculations to use standard timezone-blind UTC timelines.
+        # Inject fractional milliseconds as a private claim to enforce unique signature entropy.
+        now_utc = datetime.now(timezone.utc)
+        now_epoch = int(now_utc.timestamp())
+        fractional_ms = int(now_utc.microsecond / 1000)
         lifespan_seconds = 3600  # 1 hour
         
-        # 🔐 Preserved Variables: assigned_roles is safely populated dynamically 
-        # from the database, meaning both the payload mapping and grant execution remain intact!
+        # 🪐 RFC 7519 STANDARD PAYLOAD MAPPING
         payload = {
-            "sub": username,
-            "client_id": client_id,
+            "sub": str(client_id),
+            "username": username,       # 🟢 RESTORED: Explicit username context identification
             "roles": assigned_roles,
             "jti": token_uuid,
-            "iat": now,
-            "exp": now + lifespan_seconds
+            "iat": now_epoch,
+            "ms_offset": fractional_ms, # Private claim isolates signatures from sub-second collisions
+            "exp": now_epoch + lifespan_seconds
         }
         
         token = jwt.encode(payload, JWT_SECRET, algorithm='HS256')
         
-        # 🔌 Pass tracking parameters straight to our shared core library envelope
-        security_grid.grant(
+        # 🟢 WHITE-BOX DIAGNOSTICS INJECTED:
+        print(f"📡 [auth-service DIAGNOSTIC] Login Successful for user: {username}", flush=True)
+        print(f"📡 [auth-service DIAGNOSTIC] Generated JTI tracking UUID: {token_uuid}", flush=True)
+        print(f"📡 [auth-service DIAGNOSTIC] Core Payload mapping object: {payload}", flush=True)
+        
+        # Pass tracking parameters straight down to the platform SDK
+        granted = security_grid.grant(
             token_uuid=token_uuid,
             subject_id=client_id,
             roles=assigned_roles,
             ttl_seconds=lifespan_seconds
         )
+        print(f"📡 [auth-service DIAGNOSTIC] security_grid.grant status return value: {granted}", flush=True)
         
         return jsonify({"token": token})
     except Exception as e:
+        print(f"❌ [auth-service DIAGNOSTIC] Login Exception Trapped: {e}", file=sys.stderr, flush=True)
         return jsonify({"error": f"Internal authentication database failure: {str(e)}"}), 500
 
 # ----------------------------------------------------------------------------

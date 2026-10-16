@@ -8,7 +8,7 @@
 set -euo pipefail
 
 # Parse command line argument with automated fallback to regression testing loop
-MODE="${1:---tests}"
+MODE="${1:---demo}"
 
 echo "======================================================"
 echo "⚡ FINARK FABRIC INITIALIZATION ENGINE"
@@ -35,7 +35,7 @@ if [ "$MODE" = "--demo" ]; then
     echo "🌐 Mode: Persistent Serving Layer with Seeded Demo Accounts"
     echo "------------------------------------------------------"
     
-    docker compose up --build -d paysprint-postgres paysprint-cache paysprint-auth orchestrator-sidecar order-placement-service api-gateway
+    docker compose up --build -d paysprint-postgres paysprint-cache paysprint-auth orchestrator-sidecar order-placement api-gateway
     
     echo "⏳ Waiting for database container TCP port availability..."
     until docker compose exec paysprint-postgres pg_isready -U postgres -d paysprint > /dev/null 2>&1; do
@@ -61,7 +61,7 @@ elif [ "$MODE" = "--serve" ]; then
     echo "🌐 Mode: Clean-Room Faux Production Topology (No Seed Accounts)"
     echo "------------------------------------------------------"
     
-    docker compose up --build -d paysprint-postgres paysprint-cache paysprint-auth orchestrator-sidecar order-placement-service api-gateway
+    docker compose up --build -d paysprint-postgres paysprint-cache paysprint-auth orchestrator-sidecar order-placement api-gateway
     
     echo "⏳ Waiting for database container TCP port availability..."
     until docker compose exec paysprint-postgres pg_isready -U postgres -d paysprint > /dev/null 2>&1; do
@@ -78,12 +78,8 @@ elif [ "$MODE" = "--serve" ]; then
     echo "📋 Check sidecar telemetry logs via: docker logs -f orchestrator-sidecar"
     echo "======================================================"
 
-# ----------------------------------------------------------------------------
-# BRANCH 3: --tests (ephemeral automated regression loop pass)
-# ----------------------------------------------------------------------------
 else
-    echo "🧪 Mode: Automated Regression Testing Loop (--tests)"
-    echo "------------------------------------------------------"
-    
-    docker compose --profile db_tests up --build --abort-on-container-exit --attach test-runner
+    echo "❌ Unknown cluster deployment validation flag: $MODE_TARGET"
+    echo "👉 Usage Options: --demo | --serve | --tests"
+    exit 1
 fi

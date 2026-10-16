@@ -25,30 +25,26 @@ def bootstrap_cron_sidecar():
     cron_pool = TimerManager()
     cron_pool.start()
 
-    # ⏱️ TASK 1: Re-aligned 1-Minute Dual-Query Cloud Quota Protection Loop
-    # Runs instantly on boot, and repeats indefinitely every 60 seconds
+    # ⏱️ TASK 1: Balanced 15-Second Startup Buffer
+    # Ensures the Valkey grid (paysprint-cache) completes its internal initialization checks before injection passes fire
     cron_pool.add_delayed(
         delay=15, 
         callback=execute_dual_query_sync_pass, 
-        repeat=Repeat(delay=60, count=-1), # -1 maps to infinite looping execution
+        repeat=Repeat(delay=60, count=-1), 
         task_name="market_reference_sync"
     )
 
-    # ⏱️ TASK 2: Asynchronous Transactional Outbox Event Stream Poller
-    # 🟢 FIXED: Registered as a single-shot initialization trigger pass (repeat=None)
-    # We pass a reschedule function to the service, enabling it to let us know when it is done
-
     def _resched():
         cron_pool.add_delayed(
-            5, # Positional delay
-            execute_outbox_stream_relay, # Positional callback entrypoint
-            _resched, # Positional vararg packed cleanly into *args tuple mapping
-            task_name="transactional_outbox_poller" # Keyword argument target
+            5, 
+            execute_outbox_stream_relay, 
+            _resched, 
+            task_name="transactional_outbox_poller" 
         )
 
-    # Boot the very first initialization pass 5 seconds after script startup
+    # Boot the very first initialization pass 15 seconds after script startup to trail Task 1 cleanly
     cron_pool.add_delayed(
-        60, 
+        15, 
         execute_outbox_stream_relay, 
         _resched, 
         task_name="transactional_outbox_poller"

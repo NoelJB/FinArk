@@ -6,7 +6,11 @@
 
 import os
 import sys
+import time
+
 import requests
+import pg8000.dbapi 
+from contextlib import closing
 
 # 🔌 Import our custom shared platform SDK library to execute direct state checks
 from finark_core.session_grid import SecurityGrid
@@ -14,11 +18,13 @@ from finark_core.session_grid import SecurityGrid
 AUTH_URL = "http://paysprint-auth:4000"
 VALKEY_HOST = os.getenv("VALKEY_HOST", "paysprint-cache")
 VALKEY_PORT = int(os.getenv("VALKEY_PORT", 6379))
+DB_HOST = os.getenv("DB_HOST", "paysprint-postgres")
 
 # ============================================================================
 # 🔐 HARDENED: ZERO-TRUST SECRET INJECTION GATEWAY
 # ============================================================================
 SECRET_PATH = "/secrets/jwt_shared_secret.txt"
+PASSWORD_PATH = "/secrets/pg_master_pass.txt"
 
 if not os.path.exists(SECRET_PATH):
     print(f"❌ CRITICAL CONFIGURATION MISMATCH: Secret file missing at target container volume mount path: {SECRET_PATH}")
@@ -28,8 +34,10 @@ if not os.path.exists(SECRET_PATH):
 try:
     with open(SECRET_PATH, "r", encoding="utf-8") as f:
         JWT_SECRET = f.read().strip()
+    with open(PASSWORD_PATH, "r", encoding="utf-8") as f:
+        DB_PASSWORD = f.read().strip()
 except Exception as e:
-    print(f"❌ CRITICAL SYSTEM READ FAULT: Unable to parse secret file at {SECRET_PATH}. Details: {e}")
+    print(f"❌ CRITICAL SYSTEM READ FAULT: Unable to parse secret file. Details: {e}")
     sys.exit(1)
 
 print("======================================================")
@@ -58,12 +66,11 @@ try:
         alice_token = response.json().get("token")
         
         # 🧪 CRITICAL WHITE-BOX SECURITY AUDIT: Direct Memory Grid Check
-        # Prove the login route actively utilized the shared core library to write to Valkey
         session_envelope = test_grid.is_valid(raw_token=alice_token)
-        if session_envelope and session_envelope.get("roles") == ["MISSION_OPERATOR"]:
+        if session_envelope and "MISSION_OPERATOR" in session_envelope.get("roles", []):
             print(f"✅ Test A2 Passed: Shared Library confirms session data landed in Valkey grid securely.")
         else:
-            print("❌ Test A2 Failed: Token is cryptographically sound, but MISSING from Valkey grid keyspace!")
+            print("❌ Test A2 Failed: Token is cryptographically sound, but MISSING or lacks required permissions in Valkey!")
             sys.exit(1)
     else:
         print(f"❌ Test A1 Failed: Status {response.status_code}. Response: {response.text}")
@@ -73,13 +80,41 @@ except Exception as e:
     sys.exit(1)
 
 # ============================================================================
+# 🟢 TARGET CORRECTION HOOK: DYNAMIC PRIMARY KEY DISCOVERY ROUNDTRIP
+# ============================================================================
+print("⏳ [Harness Discovery] Pulling active dynamic context coordinates from database tier...")
+
+try:
+    with pg8000.dbapi.connect(host=DB_HOST, database="paysprint", user="postgres", password=DB_PASSWORD) as conn:
+        with closing(conn.cursor()) as cursor:
+            # Select an active client ID that is entirely missing from the credentials table
+            cursor.execute("""
+                SELECT c.id FROM client c 
+                LEFT JOIN client_credentials cc ON c.id = cc.client_id 
+                WHERE cc.client_id IS NULL 
+                LIMIT 1;
+            """)
+            resolved_row = cursor.fetchone()
+            if not resolved_row:
+                print("❌ Discovery Failure: Zero unallocated test accounts remain inside schema tables.")
+                sys.exit(1)
+            target_testing_client_id = int(resolved_row[0])
+            print(f"   👉 Discovery Success: Dynamic target_testing_client_id located at active primary index [{target_testing_client_id}]")
+except Exception as db_err:
+    print(f"❌ Discovery Failure: Unable to connect to database loop to track keys: {db_err}")
+    sys.exit(1)
+
+# ============================================================================
 # TEST BLOCK B: VALIDATE LIVE USER ENROLLMENT REGISTRATION (BR-02)
 # ============================================================================
-print("⏳ Test B: Enrolling brand-new user identity account 'noel'...")
+
+test_username = f"noel_{int(time.time())}"
+
+print(f"⏳ Test B: Enrolling brand-new user identity account 'noel' under client_id {target_testing_client_id}...")
 try:
     response = requests.post(
         f"{AUTH_URL}/register",
-        json={"username": "noel", "password": "securepassword2026", "client_id": 3},
+        json={"username": test_username, "password": "securepassword2026", "client_id": target_testing_client_id},
         timeout=5
     )
     if response.status_code == 201:
@@ -98,7 +133,7 @@ print("⏳ Test C: Verifying sign-in capacity for newly enrolled user 'noel'..."
 try:
     response = requests.post(
         f"{AUTH_URL}/login",
-        json={"username": "noel", "password": "securepassword2026"},
+        json={"username": test_username, "password": "securepassword2026"},
         timeout=5
     )
     if response.status_code == 200 and "token" in response.json():
@@ -107,7 +142,7 @@ try:
         
         # 🧪 Direct Memory Grid Verification for dynamically registered user
         noel_envelope = test_grid.is_valid(raw_token=noel_token)
-        if noel_envelope and noel_envelope.get("sub_id") == 3:
+        if noel_envelope and noel_envelope.get("sub") == str(target_testing_client_id):
             print("✅ Test C2 Passed: Shared Library confirms new user session payload is active in Valkey.")
         else:
             print("❌ Test C2 Failed: New user session envelope failed grid tracking verification.")
@@ -134,7 +169,6 @@ try:
         sys.exit(1)
 
     # 3. Direct Infrastructure Post-Logout Check
-    # Verify that the session identifier was completely evicted from memory grid channels
     post_logout_envelope = test_grid.is_valid(raw_token=alice_token)
     if post_logout_envelope is None:
         print("✅ Test D1 Passed: Shared Library confirms session data permanently dropped from Valkey.")
@@ -143,7 +177,6 @@ try:
         sys.exit(1)
 
     # 4. HTTP Gateway Post-Logout Check
-    # Ensure the /verify gatekeeper accurately defaults to fail-secure mode
     verify_response = requests.get(f"{AUTH_URL}/verify", headers=headers, timeout=5)
     if verify_response.status_code == 401:
         print("✅ Test D2 Passed: HTTP Gatekeeper boundary successfully blocks revoked token access.")

@@ -55,6 +55,7 @@ def prewarm_and_hydrate_cache_universe(cursor, cache):
         if price_update_batch:
             print(f"💾 [market-sync] Bulk writing {len(price_update_batch)} successful cloud entries to disk...", flush=True)
             cursor.execute("BEGIN;")
+            # 🟢 GREENFIELD UTC ALIGNMENT FIXED: Standardize SQL synchronization updates onto UTC boundaries
             cursor.executemany("UPDATE instrument SET current_price = %s, last_synced_at = CURRENT_TIMESTAMP WHERE ticker = %s;", price_update_batch)
             cursor.execute("COMMIT;")
 
@@ -100,6 +101,7 @@ def _async_network_ingestion_worker():
                 cursor.execute("SELECT id, ticker FROM instrument WHERE instrument_type != 'CASH';")
                 local_id_cache = {row[1]: int(row[0]) for row in cursor.fetchall() if row}
 
+                # 🟢 GREENFIELD UTC ALIGNMENT FIXED: Realigned query filter to evaluate stale intervals over universal clock fields
                 cursor.execute("SELECT i.ticker FROM instrument i JOIN trade_execution te ON i.id = te.instrument_id WHERE i.last_synced_at <= NOW() - INTERVAL '90 seconds' AND i.instrument_type != 'CASH' GROUP BY i.id, i.ticker ORDER BY MAX(te.executed_at) DESC LIMIT 25;")
                 hot_symbols = [row[0] for row in cursor.fetchall() if row]
 

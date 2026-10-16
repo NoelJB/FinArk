@@ -7,12 +7,12 @@ import java.math.BigDecimal;
 
 @Mapper
 public interface TradeExecutionMapper {
-    
-    @Select("SELECT id FROM instrument WHERE UPPER(ticker) = UPPER(#{ticker})")
+
+    @Select("SELECT id FROM instrument WHERE UPPER(ticker) = UPPER(CAST(#{ticker} AS VARCHAR))")
     Integer getInstrumentIdByTicker(@Param("ticker") String ticker);
 
-    // 🟢 REFACTORED: Resolves the unique primary key ID based on asset metadata instead of hardcoded numbers
-    @Select("SELECT id FROM instrument WHERE instrument_type = 'CASH' AND currency = #{currency}")
+    // 🟢 FIXED: Explicitly cast the bound string variable to match the exact schema type domain (canonical_currency)
+    @Select("SELECT id FROM instrument WHERE instrument_type = 'CASH' AND currency = CAST(#{currency} AS canonical_currency)")
     Integer getCashInstrumentIdByCurrency(@Param("currency") String currency);
 
     @Select("SELECT COALESCE(SUM(quantity), 0) FROM client_instrument WHERE client_id = #{clientId} AND instrument_id = #{instrumentId}")
@@ -26,6 +26,6 @@ public interface TradeExecutionMapper {
         @Param("price") BigDecimal price
     );
 
-    @Select("SELECT currency FROM instrument WHERE id = #{instrumentId}")
+    @Select("SELECT CAST(currency AS VARCHAR) FROM instrument WHERE id = #{instrumentId}")
     String getCurrencyByInstrumentId(@Param("instrumentId") int instrumentId);
 }

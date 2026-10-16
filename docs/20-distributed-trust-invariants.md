@@ -12,7 +12,7 @@ To protect internal cluster network contexts from public surface area exposure, 
 [ External HTTP Request ] ───> [ NestJS api-gateway Perimeter Boundary ]
                                           │
                                           ├── 1. auth.middleware (OPTIONS bypass, check JWT signature)
-                                          └── 2. dynamic-proxy (Extract sub_id, inject X-User-Id header)
+                                          └── 2. dynamic-proxy (Extract sub, inject X-User-Id header)
                                                        │
                                                        ▼ Forwards plain TCP stream:
                                        [ Private Microservice Network Mesh ]
@@ -35,9 +35,9 @@ To protect internal cluster network contexts from public surface area exposure, 
 ## 🔗 2. Pass-Through Trust Context Propagation (The Mesh Canopy)
 To eliminate the "Eggshell Architecture" vulnerability—where internal network microservices remain unprotected and unauthenticated behind a gateway perimeter—the platform mandates a strict decentralized pass-through trust pipeline.
 
-* **Perimeter Pass-Through:** The API Gateway does not consume or strip the identity claims permanently. It forwards the raw, original unsigned JWT token string completely intact inside the standard HTTP `Authorization: Bearer <token>` header down to internal container targets.
-* **X-User-Id Context Inversion:** To maximize network performance, the gateway's proxy middleware translates the validated session metadata claims into a primitive, compressed tracking header named **`X-User-Id`**, passing the verified user surrogate ID parameter natively into the internal private network switch mesh (`paysprint-network`).
-* **Dynamic Service Port Locators:** The reverse proxy middlewarecapitalizes incoming targeted context paths, replaces hyphens with underscores, and looks up environment variables dynamically at runtime to resolve internal port configurations (e.g., parsing `ORDER_PLACEMENT_SERVICE_PORT`), defaulting to standard internal port `8080` if no override is found.
+* **Perimeter Pass-Through:** The API Gateway does not consume or strip the identity claims permanently. It forwards the raw, original unsigned JWT token string intact inside the standard HTTP `Authorization: Bearer <token>` header down to internal container targets.
+* **X-User-Id Context Inversion:** To maximize network performance, the gateway's proxy middleware translates the validated session metadata claims into a primitive, compressed tracking header named **`X-User-Id`**, passing the verified user surrogate ID parameter natively into the internal private network switch mesh network (`paysprint-network`).
+* **Dynamic Service Port Locators:** The reverse proxy middleware capitalizes incoming targeted context paths, replaces hyphens with underscores, and looks up environment variables dynamically at runtime to resolve internal port configurations (e.g., parsing `ORDER_PLACEMENT_SERVICE_PORT`), defaulting to standard internal port `8080` if no override is found.
 
 ---
 
@@ -62,6 +62,6 @@ public void processPreTradeOrderPlacement(int verifiedContextUserId, OrderSubmit
 ```
 
 ### Strategic System Isolation Design Decisions
-* **Broken Access Control Mitigation (OWASP Top 10):** Passing an implicit Role-Based Access Control (RBAC) role evaluation alone is rejected as insufficient to run a database mutation. Entity parameters *must* match user parameters (`Context(X-User-Id) == Payload(client_id)`). This completely blocks attackers from manipulating another client's portfolio records via cross-tenant ID spoofing.
+* **RFC 7519 Compliant Tokenization:** Holding a valid token or passing an RBAC role assertion gate is rejected as insufficient to run a database mutation. Identity context is anchored strictly to the globally registered `sub` (Subject) claim containing the unique, un-concatenateable integer client primary key (`client_id`). This aligns the canopy with industry best practices and completely blocks attackers from manipulating another client's portfolio records via cross-tenant ID spoofing.
 * **Surrogate Key Abstraction:** Front-end clients route order payloads utilizing human-readable, user-friendly **`ticker` asset strings** rather than exposing internal database integer primary keys. The database engine resolves surrogate identifier fields entirely behind the security perimeter, abstracting data blueprints away from public boundaries.
 * **Decoupled Identity Warehousing:** To prevent a data leak from exposing the system's underlying authentication credentials, password hashes and salts are strictly isolated into a separate table partition (`client_credentials`) away from core financial client reference tables, minimizing our architectural blast radius.

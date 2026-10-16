@@ -1,13 +1,25 @@
 -- ============================================================================
 -- 01-test-seed.sql: CLUSTER PORTFOLIO TRANSACTIONAL DATA FIXTURES
--- Target File: db/fixtures/01-test-seed.sql | BRS Mapping: BR-14 Decoupled
+-- Target File: db/fixtures/01-test-seed.sql
 -- ============================================================================
 \c paysprint;
 
+-- 🟢 FIXED: Explicitly purge pre-existing test seed names via row-level DELETE 
+-- This safely clears old metrics without bypassing triggers or breaking serial indexes
+BEGIN;
+DELETE FROM client_credentials WHERE username IN ('alice', 'bob');
+DELETE FROM client_role_mappings WHERE client_id IN (SELECT id FROM client WHERE name IN ('Alice Johnson', 'Brian Osei', 'Carla Mendes', 'David Kim', 'Elena Petrova', 'Farid Hossain'));
+DELETE FROM client_instrument WHERE client_id IN (SELECT id FROM client WHERE name IN ('Alice Johnson', 'Brian Osei', 'Carla Mendes', 'David Kim', 'Elena Petrova', 'Farid Hossain'));
+DELETE FROM trade_execution WHERE client_id IN (SELECT id FROM client WHERE name IN ('Alice Johnson', 'Brian Osei', 'Carla Mendes', 'David Kim', 'Elena Petrova', 'Farid Hossain'));
+DELETE FROM subscription_history WHERE client_id IN (SELECT id FROM client WHERE name IN ('Alice Johnson', 'Brian Osei', 'Carla Mendes', 'David Kim', 'Elena Petrova', 'Farid Hossain'));
+DELETE FROM client WHERE name IN ('Alice Johnson', 'Brian Osei', 'Carla Mendes', 'David Kim', 'Elena Petrova', 'Farid Hossain');
+DELETE FROM model_instrument WHERE model_id IN (SELECT id FROM model_portfolio WHERE name IN ('Balanced Growth', 'Adventurous Growth', 'Income Focus'));
+DELETE FROM model_portfolio WHERE name IN ('Balanced Growth', 'Adventurous Growth', 'Income Focus');
+DELETE FROM advisor WHERE name IN ('Priya Shah', 'Daniel Osei', 'Wei Zhang', 'Fatima Al-Rashid');
+COMMIT;
+
 -- ============================================================================
 -- 🟢 STEP 1: REGRESSION TEST CALIBRATION PASS
--- Explicitly forces our core testing assets to their deterministic baselines 
--- before client allocations are mapped. This does NOT trigger the drift engine.
 -- ============================================================================
 BEGIN;
 UPDATE instrument SET current_price = 180.5000 WHERE ticker = 'AAPL';
@@ -66,6 +78,7 @@ BEGIN;
 INSERT INTO client_instrument (client_id, instrument_id, quantity) VALUES
 ((SELECT id FROM client WHERE name = 'Alice Johnson'), (SELECT id FROM instrument WHERE ticker = 'AAPL'), 400.0000),
 ((SELECT id FROM client WHERE name = 'Alice Johnson'), (SELECT id FROM instrument WHERE ticker = 'MSFT'), 300.0000),
+((SELECT id FROM client WHERE name = 'Alice Johnson'), (SELECT id FROM instrument WHERE ticker = 'CASHUSD'), 1000.0000),
 ((SELECT id FROM client WHERE name = 'Alice Johnson'), (SELECT id FROM instrument WHERE ticker = 'CASHGBP'), 300.0000),
 ((SELECT id FROM client WHERE name = 'Brian Osei'), (SELECT id FROM instrument WHERE ticker = 'AAPL'), 700.0000),
 ((SELECT id FROM client WHERE name = 'Brian Osei'), (SELECT id FROM instrument WHERE ticker = 'SPY'), 200.0000),
@@ -95,7 +108,22 @@ ON CONFLICT (client_id) DO NOTHING;
 -- 7. SYNCHRONIZE STATE DATA SNAPSHOT CACHES
 REFRESH MATERIALIZED VIEW mv_eod_regulatory_compliance;
 
--- 8. TEST ROLE SEED DATA
-INSERT INTO platform_roles (role_name) VALUES ('MISSION_OPERATOR'), ('GUEST') ON CONFLICT DO NOTHING;
-INSERT INTO client_role_mappings (client_id, role_id) SELECT 1, role_id FROM platform_roles WHERE role_name = 'MISSION_OPERATOR' ON CONFLICT DO NOTHING;
-INSERT INTO client_role_mappings (client_id, role_id) SELECT 2, role_id FROM platform_roles WHERE role_name = 'GUEST' ON CONFLICT DO NOTHING;
+-- Target File: db/fixtures/01-test-seed.sql
+-- ============================================================================
+-- 🟢 STEP 8: TEST ROLE SEED DATA (TYPE-SAFE RELATIONAL LINKING)
+-- ============================================================================
+INSERT INTO platform_roles (role_name) VALUES 
+('MISSION_OPERATOR'), 
+('GUEST') 
+ON CONFLICT DO NOTHING;
+
+-- Dynamically resolve the active client IDs to remain immune to auto-increment sequence counters
+INSERT INTO client_role_mappings (client_id, role_id) VALUES (
+    (SELECT id FROM client WHERE name = 'Alice Johnson'),
+    (SELECT role_id FROM platform_roles WHERE role_name = 'MISSION_OPERATOR')
+) ON CONFLICT DO NOTHING;
+
+INSERT INTO client_role_mappings (client_id, role_id) VALUES (
+    (SELECT id FROM client WHERE name = 'Brian Osei'),
+    (SELECT role_id FROM platform_roles WHERE role_name = 'GUEST')
+) ON CONFLICT DO NOTHING;

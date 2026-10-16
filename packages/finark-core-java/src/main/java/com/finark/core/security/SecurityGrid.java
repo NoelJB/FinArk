@@ -1,12 +1,13 @@
 // ============================================================================
 // FINARK CORE PLATFORM CHASSIS SDK - JAVA DISTRIBUTED SECURITY GRID
 // Target File: packages/finark-core-java/src/main/java/com/finark/core/security/SecurityGrid.java
-// BRS Mapping: BR-14 Cross-Language Unified Caching Contract
+// BRS Mapping: BR-14 Cross-Language Unified Caching Method Layout
 // ============================================================================
 
 package com.finark.core.security;
 
 import io.lettuce.core.RedisClient;
+import io.lettuce.core.SetArgs; // 🟢 FIXED: Required to pass time horizons natively
 import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.api.sync.RedisCommands;
 import com.auth0.jwt.JWT;
@@ -41,7 +42,8 @@ public class SecurityGrid {
     public boolean grant(String tokenUuid, long subjectId, List<String> roles, long ttlSeconds) {
         try {
             Map<String, Object> envelope = new HashMap<>();
-            envelope.put("sub_id", subjectId);
+            // 🟢 IETF RFC 7519 COMPLIANT: Standardized keyspace payload mapping to standard subject claims
+            envelope.put("sub", String.valueOf(subjectId));
             envelope.put("roles", roles);
             envelope.put("metadata", new HashMap<>());
             
@@ -49,7 +51,8 @@ public class SecurityGrid {
             // 🔐 Hardened: Aligned keyspace naming strings exactly with python/nestjs core targets
             String cacheKey = "auth_session:" + tokenUuid;
             
-            syncCommands.setex(cacheKey, ttlSeconds, serialized);
+            // 🟢 FIXED BEST PRACTICE: Lettuce Core maps expiration parameters using explicit SetArgs builders
+            syncCommands.set(cacheKey, serialized, SetArgs.Builder.ex(ttlSeconds));
             return true;
         } catch (Exception e) {
             return false;
@@ -59,7 +62,10 @@ public class SecurityGrid {
     public Map<String, Object> isValid(String rawToken) {
         try {
             Algorithm algorithm = Algorithm.HMAC256(jwtSecret);
-            DecodedJWT jwt = JWT.require(algorithm).build().verify(rawToken);
+            DecodedJWT jwt = JWT.require(algorithm)
+                                .acceptExpiresAt(5) // Tight 5-second leeway matching edge proxies
+                                .build()
+                                .verify(rawToken);
             String tokenUuid = jwt.getClaim("jti").asString();
             if (tokenUuid == null) return null;
             
@@ -69,7 +75,8 @@ public class SecurityGrid {
             if (rawSession == null) return null;
             
             // ✅ Java 25 Type Safety: Explicit TypeReference prevents unchecked conversion warnings
-            return objectMapper.readValue(rawSession, new TypeReference<Map<String, Object>>() {});
+            Map<String, Object> sessionMap = objectMapper.readValue(rawSession, new TypeReference<Map<String, Object>>() {});
+            return sessionMap;
         } catch (Exception e) {
             return null;
         }

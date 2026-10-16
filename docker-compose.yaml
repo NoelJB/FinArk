@@ -1,4 +1,11 @@
+# ============================================================================
+# FINARK DISTRIBUTED PLATFORM - MASTER SERVICES ORCHESTRATOR MATRIX
+# Target File: ./docker-compose.yaml | Milestone 4 Advanced Mesh Topology
+# ============================================================================
 services:
+  # ----------------------------------------------------------------------------
+  # CORE STORAGE & DATA ACCELERATION LAYERS
+  # ----------------------------------------------------------------------------
   paysprint-postgres:
     image: postgres:16-alpine
     container_name: paysprint-postgres
@@ -6,20 +13,40 @@ services:
       - paysprint-network
     ports:
       - "5432:5432"
+    volumes:
+      - ./db/core_ddl:/docker-entrypoint-initdb.d:ro
+      - pgdata:/var/lib/postgresql/data
     environment:
-      POSTGRES_DB: paysprint
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD_FILE: /run/secrets/pg_master_pass
+      - POSTGRES_DB=paysprint
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD_FILE=/run/secrets/pg_master_pass
     secrets:
       - pg_master_pass
-    volumes:
-      - ./db/core_ddl/:/docker-entrypoint-initdb.d
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d paysprint"]
-      interval: 5s
+      interval: 10s
       timeout: 5s
       retries: 5
 
+  paysprint-cache:
+    image: valkey/valkey:7.2-alpine
+    container_name: paysprint-cache
+    networks:
+      - paysprint-network
+    ports:
+      - "6379:6379"
+    volumes:
+      - valkeydata:/data
+    command: valkey-server --protected-mode no --save 60 1
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ----------------------------------------------------------------------------
+  # EVENT STREAMING INFRASTRUCTURE (CONFLUENT PLATFORM)
+  # ----------------------------------------------------------------------------
   paysprint-kafka:
     image: confluentinc/cp-kafka:8.3.0
     container_name: paysprint-kafka
@@ -34,7 +61,8 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
-      KAFKA_TRANSACTION_STATE_LOG_REREPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true' 
       KAFKA_PROCESS_ROLES: 'broker,controller'
       KAFKA_CONTROLLER_QUORUM_VOTERS: '1@paysprint-kafka:29093'
       KAFKA_LISTENERS: 'PLAINTEXT://0.0.0.0:29092,CONTROLLER://0.0.0.0:29093,PLAINTEXT_HOST://0.0.0.0:9092'
@@ -47,44 +75,43 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+      start_period: 45s
 
-  paysprint-kafka-init:
-    image: confluentinc/cp-kafka:8.3.0
-    container_name: paysprint-kafka-init
-    networks:
-      - paysprint-network
-    depends_on:
-      paysprint-kafka:
-        condition: service_healthy
-    entrypoint: >
-      bash -c "
-        echo '⏳ Waiting for Kafka cluster synchronization controller states...' &&
-        sleep 3 &&
-        kafka-topics --create --if-not-exists --bootstrap-server paysprint-kafka:29092 --partitions 1 --replication-factor 1 --topic execution-ledger &&
-        kafka-topics --create --if-not-exists --bootstrap-server paysprint-kafka:29092 --partitions 1 --replication-factor 1 --topic compliance-alerts &&
-        echo '✅ Production event streaming channels successfully mapped!'
-      "
+  # ----------------------------------------------------------------------------
+  # SYSTEM CORE MICROSERVICES & APPS
+  # ----------------------------------------------------------------------------
+# ============================================================================
+# 🟢 EDGE GATEWAY REALIGNMENT: Injecting true private grid routing parameters
+# Location: Inside the api-gateway service block in docker-compose.yaml
+# ============================================================================
 
-  paysprint-cache:
-    image: valkey/valkey:7.2-alpine
-    container_name: paysprint-cache
+  api-gateway:
+    build:
+      context: ./services/api-gateway
+      dockerfile: Dockerfile
+    container_name: api-gateway
     networks:
       - paysprint-network
     ports:
-      - "6379:6379"
-    healthcheck:
-      test: ["CMD-SHELL", "valkey-cli ping | grep PONG || exit 1"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
+      - "3000:3000"
+    environment:
+      - "PORT=3000"
+      - "JWT_SECRET_FILE=/run/secrets/jwt_shared_secret"
+      - "REDIS_HOST=paysprint-cache"
+      - "VALKEY_HOST=paysprint-cache"
+      - "REDIS_PORT=6379"
+    secrets:
+      - jwt_shared_secret
+    depends_on:
+      paysprint-cache:
+        condition: service_healthy
 
   paysprint-auth:
     build:
-      context: ./services/auth-service # 🔐 Retains clean service-level isolation
+      context: ./services/auth-service
       dockerfile: Dockerfile
       additional_contexts:
-        finark_core_src: ./packages/finark-core # 🔌 Correct Compose Spec Mapping
+        finark_core_src: ./packages/finark-core
     container_name: paysprint-auth
     networks:
       - paysprint-network
@@ -94,118 +121,72 @@ services:
       - "VALKEY_HOST=paysprint-cache"
       - "VALKEY_PORT=6379"
       - "DB_HOST=paysprint-postgres"
+      - "JWT_SECRET_FILE=/run/secrets/jwt_shared_secret"
     secrets:
       - jwt_shared_secret
       - pg_master_pass
     depends_on:
-      paysprint-cache:
-        condition: service_healthy
       paysprint-postgres:
         condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "nc -z localhost 4000 || exit 1"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
-  test-runner:
-    build:
-      context: .
-      dockerfile: test/Dockerfile
-    container_name: test-runner
-    profiles:
-      - db_tests
-    networks:
-      - paysprint-network
-    volumes:
-      - ./test:/test
-      - ./packages:/packages:ro
-      - ./test/api:/test/api:ro
-      - ./db/fixtures:/fixtures:ro
-      - ./secrets:/secrets:ro
-      - ./services/api-gateway:/build/services/api-gateway
-      - /build/services/api-gateway/node_modules
-      - ./services/order-placement-service:/build/services/order-placement-service
-    command: ["/bin/bash", "/test/run-tests.sh"]
-    environment:
-      - DB_HOST=paysprint-postgres
-      - VALKEY_HOST=paysprint-cache
-      - VALKEY_PORT=6379
-    depends_on:
       paysprint-cache:
         condition: service_healthy
-      paysprint-postgres:
-        condition: service_healthy
-      paysprint-auth:
-        condition: service_healthy
 
-  # ----------------------------------------------------------------------------
-  # 🟢 THE PERIMETER MICROGATEWAY (NESTJS / TYPESCRIPT TIER)
-  # ----------------------------------------------------------------------------
-  api-gateway:
-    build:
-      context: ./services/api-gateway
-      dockerfile: Dockerfile
-    container_name: api-gateway
-    ports:
-      - "3000:3000" # 🔐 The sole public domain boundary interface entry point
-    networks:
-      - paysprint-network
-    volumes:
-      - ./services/api-gateway:/app
-      - /app/node_modules # Protect container modules from host path leaks
-      - /app/dist
-      - ./secrets:/secrets:ro
-    environment:
-      - "VALKEY_HOST=paysprint-cache"
-      - "VALKEY_PORT=6379"
-      - "TRADE_SERVICE_URL=http://trade-gateway:8080"
-      - "PORTFOLIO_SERVICE_URL=http://portfolio-viewer:8080"
-    healthcheck:
-      test: ["CMD-SHELL", "nc -z localhost 3000 || exit 1"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-    depends_on:
-      paysprint-cache:
-        condition: service_healthy
- #     trade-gateway:
- #       condition: service_healthy
-
-  # ----------------------------------------------------------------------------
-  # ☕ THE ORDER PLACEMENT ENGINE (SPRING BOOT / JAVA 25 TIER)
-  # ----------------------------------------------------------------------------
-
-  order-placement-service:
+  order-placement:
     build:
       context: ./services/order-placement-service
       dockerfile: Dockerfile
       additional_contexts:
         finark_core_java_src: ./packages/finark-core-java
-    container_name: order-placement-service
+    container_name: order-placement
     networks:
       - paysprint-network
+    ports:
+      - "8080:8080"
     volumes:
       - ./services/order-placement-service/src:/app/src
       - /app/target
       - ./secrets:/secrets:ro
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
     environment:
       - "VALKEY_HOST=paysprint-cache"
       - "VALKEY_PORT=6379"
       - "DB_HOST=paysprint-postgres"
-      # 🔐 Hardened: Direct Spring Boot to read credentials straight from secure container secret file volumes
       - "FAUXNANCE_API_URL_FILE=/run/secrets/fauxnance_api_url"
       - "FAUXNANCE_API_KEY_FILE=/run/secrets/fauxnance_api_key"
+      - "TZ=America/New_York"
+      - "JAVA_TOOL_OPTIONS=-Duser.timezone=America/New_York -Djava.net.preferIPv4Stack=true"
     secrets:
       - jwt_shared_secret
       - pg_master_pass
       - fauxnance_api_url
       - fauxnance_api_key
+    working_dir: /app
+    entrypoint: ["java", "-jar", "order-placement-service.jar"]
     healthcheck:
-      test: ["CMD-SHELL", "nc -z localhost 8080 || exit 1"]
-      interval: 5s
+      test:
+        - "CMD"
+        - "sh"
+        - "-c"
+        - |
+          jshell -R-Djava.net.preferIPv4Stack=true - << 'EOF'
+          import java.net.http.*;
+          import java.net.*;
+          int statusCode = 0;
+          try {
+              var client = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).build();
+              var request = HttpRequest.newBuilder().uri(URI.create("http://localhost:8080/actuator/health/liveness")).build();
+              var response = client.send(request, HttpResponse.BodyHandlers.discarding());
+              statusCode = response.statusCode();
+          } catch (Exception e) {
+              statusCode = 500;
+          }
+          /exit (statusCode == 200 ? 0 : 1)
+          EOF
+      interval: 15s
       timeout: 5s
-      retries: 5
+      retries: 3
+      start_period: 20s
     depends_on:
       paysprint-cache:
         condition: service_healthy
@@ -219,37 +200,91 @@ services:
     container_name: orchestrator-sidecar
     networks:
       - paysprint-network
+    volumes:
+      - ./services/orchestrator-sidecar/tasks:/app/tasks
     environment:
-      - "VALKEY_HOST=paysprint-cache"
-      - "VALKEY_PORT=6379"
       - "DB_HOST=paysprint-postgres"
-      - "KAFKA_BOOTSTRAP_SERVER=paysprint-kafka:29092"
-      - "PYTHONUNBUFFERED=1" 
+      - "VALKEY_HOST=paysprint-cache"
+      - "KAFKA_BOOTSTRAP_SERVERS=paysprint-kafka:29092"
     secrets:
       - pg_master_pass
-      - jwt_shared_secret
       - fauxnance_api_url
       - fauxnance_api_key
-    # 🟢 FIXED: Enforce a direct service health gate dependency check link.
-    # This forces the Docker Compose mesh toolchain to register the broker's hostname mapping!
     depends_on:
-      paysprint-cache:
-        condition: service_healthy
       paysprint-postgres:
+        condition: service_healthy
+      paysprint-cache:
         condition: service_healthy
       paysprint-kafka:
         condition: service_healthy
 
-secrets:
-  pg_master_pass:
-    file: ./secrets/pg_master_pass.txt
-  jwt_shared_secret:
-    file: ./secrets/jwt_shared_secret.txt
-  fauxnance_api_url:
-    file: ./secrets/fauxnance_api_url.txt
-  fauxnance_api_key:
-    file: ./secrets/fauxnance_api_key.txt
+  # ----------------------------------------------------------------------------
+  # DECOUPLED ASYNC ISOLATED HARNESS SUITES
+  # ----------------------------------------------------------------------------
+
+  # 🔵 SUITE A: Cold-Path, State-Destructive Relational Database Assertions
+  db-test-runner:
+    build:
+      context: ./test
+      dockerfile: Dockerfile
+      target: runner-db  # ◄ Targets Stage 2 to isolate run-db-tests.sh natively
+    container_name: db-test-runner
+    profiles:
+      - db_tests
+    networks:
+      - paysprint-network
+    volumes:
+      - ./test:/test
+      - ./db/fixtures:/fixtures:ro
+    environment:
+      - "DB_HOST=paysprint-postgres"
+      - "VALKEY_HOST=paysprint-cache"
+    depends_on:
+      paysprint-postgres:
+        condition: service_healthy
+
+  # 🟢 SUITE B: Hot-Path, State-Preserving Rest API Handshake Validation Canopy
+  api-test-runner:
+    build:
+      context: ./test
+      dockerfile: Dockerfile
+      target: runner-api  # ◄ Targets Stage 3 to isolate run-api-tests.sh and package hooks
+    container_name: api-test-runner
+    profiles:
+      - api_tests
+    networks:
+      - paysprint-network
+    volumes:
+      - ./test:/test
+      - ./packages:/packages:ro
+      - ./secrets:/secrets:ro
+      - ./db/fixtures:/fixtures:ro
+    environment:
+      - "DB_HOST=paysprint-postgres"
+      - "VALKEY_HOST=paysprint-cache"
+    depends_on:
+      order-placement:
+        condition: service_healthy
+      api-gateway:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+    driver: local
+  valkeydata:
+    driver: local
 
 networks:
   paysprint-network:
     name: paysprint-network
+    driver: bridge
+
+secrets:
+  jwt_shared_secret:
+    file: ./secrets/jwt_shared_secret.txt
+  pg_master_pass:
+    file: ./secrets/pg_master_pass.txt
+  fauxnance_api_url:
+    file: ./secrets/fauxnance_api_url.txt
+  fauxnance_api_key:
+    file: ./secrets/fauxnance_api_key.txt

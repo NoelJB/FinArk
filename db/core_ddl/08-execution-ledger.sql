@@ -14,7 +14,7 @@ CREATE TABLE trade_execution (
     side VARCHAR(4) NOT NULL, -- Must be 'BUY' or 'SELL'
     quantity NUMERIC(18, 4) NOT NULL,
     execution_price NUMERIC(18, 4) NOT NULL,
-    executed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    executed_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP, -- 🟢 FIXED: Converted to timestamptz
     CONSTRAINT fk_execution_client FOREIGN KEY (client_id) REFERENCES client(id),
     CONSTRAINT fk_execution_instrument FOREIGN KEY (instrument_id) REFERENCES instrument(id),
     CONSTRAINT chk_execution_side CHECK (side IN ('BUY', 'SELL')),
@@ -52,7 +52,7 @@ BEGIN
             'action', NEW.side,
             'quantity', NEW.quantity,
             'price', NEW.execution_price,
-            'executed_at', NEW.executed_at
+            'executed_at', to_char(NEW.executed_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') -- 🟢 FIXED: ISO8601 UTC Serialization
         )
     );
     

@@ -26,7 +26,7 @@ BEGIN
                 'client_id', COALESCE(NEW.client_id, OLD.client_id),
                 'max_drift_detected', max_drift,
                 'status', 'BREACH',
-                'alert_timestamp', CURRENT_TIMESTAMP
+                'alert_timestamp', to_char(CURRENT_TIMESTAMP AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') -- 🟢 FIXED: ISO8601 UTC Serialization
             )
         );
     END IF;
@@ -41,7 +41,7 @@ CREATE TRIGGER trg_evaluate_drift_post_trade
     EXECUTE FUNCTION check_portfolio_drift_compliance();
 
 -- 2. HISTORICAL MIGRATION BACKFILL (Catches pre-existing anomalies like Alice)
-    -- Inside the Historical Migration Backfill query at the bottom of the file:
+-- Inside the Historical Migration Backfill query at the bottom of the file:
 INSERT INTO outbox (aggregate_type, aggregate_id, event_type, payload)
 SELECT 
     'compliance-alerts' AS aggregate_type, -- 👈 Re-aligned target routing channel
@@ -51,7 +51,7 @@ SELECT
         'client_id', client_id,
         'max_drift_detected', MAX(ABS(drift_variance)),
         'status', 'BREACH',
-        'alert_timestamp', CURRENT_TIMESTAMP
+        'alert_timestamp', to_char(CURRENT_TIMESTAMP AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') -- 🟢 FIXED: ISO8601 UTC Serialization
     ) AS payload
 FROM v_client_portfolio_drift
 GROUP BY client_id

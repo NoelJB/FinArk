@@ -12,13 +12,14 @@ FROM node:24-alpine AS gateway_builder
 WORKDIR /build
 
 COPY package.json ./
-RUN npm install
+# --legacy-peer-deps to workaround a dependency issue with NestJS 12 and @nestjs/jwt
+RUN npm install --legacy-peer-deps
 
 COPY tsconfig.json ./
 COPY src/ ./src/
 
 # Compile clean ECMAScript production bundles
-RUN npm run build && npm prune --production
+RUN npm run build && npm prune --omit=dev --legacy-peer-deps
 
 # ----------------------------------------------------------------------------
 # STAGE 2: THE HARDENED PRODUCTION RUNTIME

@@ -29,8 +29,9 @@ class SecurityGrid:
     def grant(self, token_uuid: str, subject_id: int, roles: list, ttl_seconds: int, metadata: dict = None) -> bool:
         """Registers a fresh authenticated session security envelope into the shared grid."""
         try:
+            # 🟢 IETF RFC 7519 COMPLIANT: Standardized keyspace payload mapping to standard subject claims
             envelope = {
-                "sub_id": int(subject_id),
+                "sub": str(subject_id),
                 "roles": list(roles),
                 "metadata": dict(metadata) if metadata else {}
             }

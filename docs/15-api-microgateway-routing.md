@@ -8,7 +8,7 @@ The FinArk platform utilizes a centralized **Edge Reverse Proxy with an Inline A
 ## 📋 1. Perimeter Admission Control Policy (The Edge Guard)
 *   **Component Target:** `services/api-gateway/src/middleware/auth.middleware.ts`
 *   **Execution Timing:** Executes at the absolute entry point of the HTTP lifecycle, before any request parsing or routing engines engage.
-*   **Operational Mandate:** Intercepts all inbound traffic matching the versioned namespace prefix (`api/v1/*`). It splits the `Authorization: Bearer <JWT>` header using a starred string unpacking pattern, isolates the raw signature, and runs a sub-millisecond local check against the Valkey grid (`active_token:<UUID>`).
+*   **Operational Mandate:** Intercepts all inbound traffic matching the versioned namespace prefix (`api/v1/*`). It splits the `Authorization: Bearer <JWT>` header using a starred string unpacking pattern, isolates the raw signature, and runs a sub-millisecond local check against the Valkey grid (`auth_token:<UUID>`).
 *   **Fail-Secure Behavior:** If an identity token is missing, malformed, or administratively revoked, the gate terminates the connection instantly with an HTTP `401 Unauthorized` response. Internal microservice containers never ingest a single network packet from unauthenticated payloads.
 
 ---

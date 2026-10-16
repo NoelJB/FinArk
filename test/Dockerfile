@@ -1,25 +1,36 @@
 # syntax=docker/dockerfile:1
 # ============================================================================
-# FINARK PLATFORM - AUTOMATED REGRESSION HARNESS ENVIRONMENT BLUEPRINT
-# Target File: test/Dockerfile | BRS Mapping: BR-14 Unified DevOps Engine
+# FINARK CORE TESTING RUNTIME FRAMEWORK - MULTI-STAGE PLATFORM HARNESS
+# Target File: test/Dockerfile
 # ============================================================================
-
-# ☕ Hardened: Locked strictly to the official Eclipse Temurin Java 25 LTS alpine container base
-FROM eclipse-temurin:25-jdk-alpine
-
-# 🔐 Hardened: Provision complete native compiler engines for Node, Python, and Maven
-RUN apk add --no-cache \
-    bash \
-    python3 \
-    py3-requests \
-    py3-pip \
-    py3-setuptools \
-    netcat-openbsd \
-    postgresql16-client \
-    nodejs \
-    npm \
-    maven
+FROM python:3.12-alpine3.20 AS base-harness
 
 WORKDIR /test
 
-ENTRYPOINT ["/test/run-tests.sh"]
+# Retain ALL legacy system network tools and compilation extensions
+RUN apk add --no-cache \
+    bash \
+    curl \
+    netcat-openbsd \
+    gcc \
+    musl-dev \
+    postgresql-dev \
+    postgresql-client \
+    make \
+    g++
+
+# Pre-compile third-party wheels directly into the image layer
+RUN pip install --no-cache-dir --break-system-packages pyjwt requests pg8000 scramp valkey
+
+# ----------------------------------------------------------------------------
+# Stage 2: THE TARGET FOR THE STATIC COLD DB UNIT SUITE
+# ----------------------------------------------------------------------------
+FROM base-harness AS runner-db
+ENTRYPOINT ["/bin/bash", "/test/run-db-tests.sh"]
+
+# ----------------------------------------------------------------------------
+# Stage 3: THE TARGET FOR THE STATEFUL LIVE API INTEGRATION SUITE
+# ----------------------------------------------------------------------------
+FROM base-harness AS runner-api
+ENV PYTHONPATH="/packages/finark-core:/test/api:${PYTHONPATH}"
+ENTRYPOINT ["/bin/bash", "/test/run-api-tests.sh"]

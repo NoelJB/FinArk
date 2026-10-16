@@ -16,7 +16,7 @@ declare global {
 
 declare module 'express-session' {
   interface SessionData {
-    sub_id: number;
+    sub: string;
     roles: string[];
   }
 }

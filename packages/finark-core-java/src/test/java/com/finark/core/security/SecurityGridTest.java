@@ -12,6 +12,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import io.lettuce.core.api.sync.RedisCommands;
+import io.lettuce.core.SetArgs; // 🟢 FIXED: Imported to support mock verification boundaries
 import java.util.List;
 
 import static org.mockito.Mockito.*;
@@ -34,12 +35,13 @@ public class SecurityGridTest {
 
     @Test
     public void testGrant() {
-        when(syncCommands.setex(anyString(), anyLong(), anyString())).thenReturn("OK");
+        // 🟢 FIXED: Aligned stubbing behavior with Lettuce's unified .set() signature mapping
+        when(syncCommands.set(anyString(), anyString(), any(SetArgs.class))).thenReturn("OK");
         
         boolean res = securityGrid.grant("uuid-1", 3L, List.of("GUEST"), 3600L);
         
         assertTrue(res);
         // 🔐 Hardened: Aligned verification assertions exactly with our auth_session: contract
-        verify(syncCommands).setex(eq("auth_session:uuid-1"), eq(3600L), anyString());
+        verify(syncCommands).set(eq("auth_session:uuid-1"), anyString(), any(SetArgs.class));
     }
 }
